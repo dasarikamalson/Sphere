@@ -9,6 +9,7 @@ import {
   TeamMember,
   TimeEntry,
   UserRole,
+  WorkspaceState,
 } from '../types/project';
 
 /**
@@ -853,3 +854,325 @@ export async function decryptPayloadAES(
 
   return dec.decode(decryptedBuf);
 }
+
+export interface DmaicMethodologyStep {
+  phase: DmaicPhase;
+  stepNumber: string;
+  tagline: string;
+  plainLanguageExplanation: string;
+  kronosphereToolMapping: string;
+  mappedTab: 'dashboard' | 'tasks' | 'collaboration' | 'timetracking' | 'automation';
+  mappedFeatureLabel: string;
+  keyOutputs: string[];
+  industryExamples: {
+    construction: string;
+    events: string;
+    tech: string;
+    manufacturing: string;
+  };
+}
+
+/**
+ * Structured Six Sigma DMAIC Methodology guide explaining how non-technical teams
+ * map Define, Measure, Analyze, Improve, and Control directly to KronoSphere features.
+ */
+export const DMAIC_METHODOLOGY_GUIDE: DmaicMethodologyStep[] = [
+  {
+    phase: 'Define',
+    stepNumber: '01',
+    tagline: 'Clarify Project Scope, Customer Goals & Priority Order',
+    plainLanguageExplanation:
+      'Before starting work, agree on what success looks like, what could go wrong, and which tasks matter most to the client or end user.',
+    kronosphereToolMapping:
+      'Use the Multi-Project Portfolio Switcher to charter the project, create Milestone Gates, and assign initial task priority order (priorityIndex) in Tasks & DAG.',
+    mappedTab: 'tasks',
+    mappedFeatureLabel: 'Tasks, Milestones & Priority Queue',
+    keyOutputs: [
+      'Multi-Project Charter & Target Sigma Level (σ)',
+      'Critical-To-Quality (CTQ) Milestone Gates',
+      'Ranked Task Backlog (priorityIndex #1..#N)',
+    ],
+    industryExamples: {
+      construction: 'Define structural blueprint sign-off gates and site safety inspection criteria.',
+      events: 'Define venue capacity, run-of-show timeline gates, and AV redundancy requirements.',
+      tech: 'Define API latency SLAs, release acceptance criteria, and security compliance scope.',
+      manufacturing: 'Define assembly line tolerance specifications and supplier quality standards.',
+    },
+  },
+  {
+    phase: 'Measure',
+    stepNumber: '02',
+    tagline: 'Track Real Effort, Inspection Opportunities & Defect Counts',
+    plainLanguageExplanation:
+      'Replace guesswork with real numbers by recording how long tasks actually take and how many quality checks pass or fail.',
+    kronosphereToolMapping:
+      'Use the Live Task Chronometer & Manual Timesheets in Time & Reports to measure actual vs. budgeted hours, and record Inspection Opportunities (O) and Defects (D) on each task row.',
+    mappedTab: 'timetracking',
+    mappedFeatureLabel: 'Chronometer & Defect/Opportunity Counters',
+    keyOutputs: [
+      'Actual Logged Hours vs. Estimated Baseline',
+      'Inspection Opportunities per Deliverable (O)',
+      'Recorded Non-Conformances / Defects (D)',
+    ],
+    industryExamples: {
+      construction: 'Measure concrete cure test results and rebar inspection pass/fail counts.',
+      events: 'Measure soundcheck decibel levels, load-in duration, and ticket scanner error rates.',
+      tech: 'Measure sprint velocity, QA test pass rates, and production error frequencies.',
+      manufacturing: 'Measure cycle times, unit weight variance, and batch defect rates.',
+    },
+  },
+  {
+    phase: 'Analyze',
+    stepNumber: '03',
+    tagline: 'Spot Bottlenecks, Schedule Delays & Root Causes of Defects',
+    plainLanguageExplanation:
+      'Find out why delays or defects happen by inspecting which tasks block downstream work and which departments are overloaded.',
+    kronosphereToolMapping:
+      'Use the Cycle-Safe DAG Dependency Linker & Critical Path Calculator to identify zero-slack bottlenecks, and query the RAG Knowledge Copilot to analyze root causes across team logs.',
+    mappedTab: 'tasks',
+    mappedFeatureLabel: 'DAG Dependency Linker & RAG Root-Cause Search',
+    keyOutputs: [
+      'Critical Path Duration & Blocked Task Chain',
+      'Departmental Workload & Cost Burn Variance',
+      'RAG-Assisted Root-Cause Synthesis Across SOPs & Channels',
+    ],
+    industryExamples: {
+      construction: 'Identify how delayed MEP permit approvals block drywall and finishing trades.',
+      events: 'Analyze why stage rigging delays cascade into lighting focus and dress rehearsal.',
+      tech: 'Trace how database schema bottlenecks block API integration and frontend QA.',
+      manufacturing: 'Analyze which upstream tooling station causes downstream assembly defects.',
+    },
+  },
+  {
+    phase: 'Improve',
+    stepNumber: '04',
+    tagline: 'Resequence Priorities, Coordinate in Channels & Automate Fixes',
+    plainLanguageExplanation:
+      'Fix bottlenecks immediately by dragging high-impact fixes to the top of the queue, coordinating in team channels, and automating escalations.',
+    kronosphereToolMapping:
+      'Drag and drop rows in the Priority Matrix to update priorityIndex in real time, coordinate rapid fixes in Slack-style Channels, and enable Workflow Automation Rules.',
+    mappedTab: 'collaboration',
+    mappedFeatureLabel: 'Drag-and-Drop Priority & Team Channels',
+    keyOutputs: [
+      'Reordered Task Priority Queue (Auto-Updated priorityIndex)',
+      'Automated Escalation & Reassignment Triggers',
+      'Cross-Functional Channel Resolutions & SOP Updates',
+    ],
+    industryExamples: {
+      construction: 'Reprioritize crane scheduling and dispatch rapid remediation crew via #field-ops.',
+      events: 'Reorder load-in dock sequence and alert stagehands in #dmaic-quality-gates.',
+      tech: 'Move hotfix to priorityIndex #1 and auto-assign blocked tickets to principal engineers.',
+      manufacturing: 'Adjust machine calibration parameters and update operator SOP in the RAG index.',
+    },
+  },
+  {
+    phase: 'Control',
+    stepNumber: '05',
+    tagline: 'Lock In Quality with Live DPMO, RBAC Governance & Encrypted Audits',
+    plainLanguageExplanation:
+      'Keep the process running smoothly over time with automated quality scorecards, role permissions, and tamper-proof backups.',
+    kronosphereToolMapping:
+      'Monitor the Six Sigma DPMO / Sigma Level (σ) / Cpk scorecard on the Dashboard, enforce 4-tier RBAC permissions, and seal snapshots in the AES-GCM-256 Encrypted Vault.',
+    mappedTab: 'automation',
+    mappedFeatureLabel: 'Six Sigma Control Scorecard, RBAC & AES-GCM Vault',
+    keyOutputs: [
+      'Live DPMO, First-Pass Yield (%) & Process Capability (Cpk)',
+      'Role-Based Access Control (Admin, Project Lead, Contributor, Auditor)',
+      'Exportable PDF 1.4 / CSV Audit Reports & Encrypted Snapshots',
+    ],
+    industryExamples: {
+      construction: 'Enforce final building code sign-offs and archive encrypted inspection logs.',
+      events: 'Lock run-of-show changes to Project Leads and export post-event quality metrics.',
+      tech: 'Enforce release gate approvals and maintain 6σ (≤3.4 DPMO) production stability.',
+      manufacturing: 'Maintain Statistical Process Control (Cpk ≥ 1.33) and ISO audit readiness.',
+    },
+  },
+];
+
+export interface RagChunk {
+  id: string;
+  sourceType: 'project' | 'task' | 'milestone' | 'channel_message' | 'knowledge_doc' | 'methodology';
+  sourceCode: string;
+  title: string;
+  content: string;
+  projectId?: string;
+  score: number;
+}
+
+function tokenizeText(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 2);
+}
+
+/**
+ * Builds the searchable RAG corpus from all projects, tasks, milestones,
+ * Slack-style channel messages, knowledge base SOP documents, and the DMAIC methodology guide.
+ */
+export function buildRagCorpus(workspace: WorkspaceState): Omit<RagChunk, 'score'>[] {
+  const chunks: Omit<RagChunk, 'score'>[] = [];
+
+  for (const proj of workspace.projects || []) {
+    chunks.push({
+      id: `rag-proj-${proj.id}`,
+      sourceType: 'project',
+      sourceCode: proj.code,
+      title: `Project ${proj.code}: ${proj.name}`,
+      content: `Project ${proj.name} (${proj.code}) in sector ${proj.industrySector}. Lead: ${proj.leadName}. Target Sigma Level: ${proj.targetSigmaLevel}σ. Description: ${proj.description}`,
+      projectId: proj.id,
+    });
+  }
+
+  for (const task of workspace.tasks || []) {
+    chunks.push({
+      id: `rag-task-${task.id}`,
+      sourceType: 'task',
+      sourceCode: task.code,
+      title: `Task ${task.code}: ${task.title}`,
+      content: `Deliverable ${task.code} (${task.title}) in ${task.industrySector} / ${task.department}. DMAIC Phase: ${task.dmaicPhase}. Status: ${task.status}. Priority: ${task.priority} (priorityIndex: ${task.priorityIndex}, rank #${task.priorityIndex + 1}). Defects: ${task.defectsCount} / ${task.opportunitiesCount} opportunities. Hours: ${task.loggedHours}h logged of ${task.estimatedHours}h estimated. Due: ${task.dueDate}. Notes: ${task.description}`,
+      projectId: task.projectId,
+    });
+  }
+
+  for (const ms of workspace.milestones || []) {
+    chunks.push({
+      id: `rag-ms-${ms.id}`,
+      sourceType: 'milestone',
+      sourceCode: ms.code,
+      title: `Milestone ${ms.code}: ${ms.title}`,
+      content: `Milestone Gate ${ms.code} (${ms.title}) in ${ms.department}. Target Date: ${ms.targetDate}. Progress: ${ms.progress}%. Critical Gate: ${ms.isCritical ? 'Yes' : 'No'}. Details: ${ms.description}`,
+      projectId: ms.projectId,
+    });
+  }
+
+  for (const doc of workspace.knowledgeDocs || []) {
+    chunks.push({
+      id: `rag-doc-${doc.id}`,
+      sourceType: 'knowledge_doc',
+      sourceCode: doc.code,
+      title: `${doc.category} ${doc.code}: ${doc.title}`,
+      content: `Document ${doc.code} (${doc.title}) [${doc.category} · DMAIC ${doc.dmaicPhase}]. Author: ${doc.authorName}. Content: ${doc.content}`,
+      projectId: doc.projectId,
+    });
+  }
+
+  for (const msg of workspace.messages || []) {
+    if (msg.isRagResponse) continue;
+    const ch = (workspace.channels || []).find((c) => c.id === msg.channelId);
+    chunks.push({
+      id: `rag-msg-${msg.id}`,
+      sourceType: 'channel_message',
+      sourceCode: ch ? `#${ch.name}` : '#channel',
+      title: `Message from ${msg.senderName} (${msg.senderRole}) in ${ch ? `#${ch.name}` : 'channel'}`,
+      content: `${msg.senderName} (${msg.senderRole}) in ${ch ? `#${ch.name}` : 'channel'}: "${msg.content}"`,
+      projectId: msg.projectId,
+    });
+  }
+
+  for (const step of DMAIC_METHODOLOGY_GUIDE) {
+    chunks.push({
+      id: `rag-dmaic-${step.phase.toLowerCase()}`,
+      sourceType: 'methodology',
+      sourceCode: `DMAIC-${step.stepNumber}`,
+      title: `Six Sigma DMAIC Phase ${step.stepNumber}: ${step.phase} (${step.tagline})`,
+      content: `DMAIC ${step.phase} Phase: ${step.plainLanguageExplanation} Tool Mapping: ${step.kronosphereToolMapping} Outputs: ${step.keyOutputs.join(', ')}. Examples — Construction: ${step.industryExamples.construction} Events: ${step.industryExamples.events} Tech: ${step.industryExamples.tech}`,
+    });
+  }
+
+  return chunks;
+}
+
+/**
+ * Retrieves top-K relevant workspace chunks using BM25 + keyword overlap scoring.
+ */
+export function retrieveRelevantChunks(
+  query: string,
+  workspace: WorkspaceState,
+  topK = 5
+): RagChunk[] {
+  const corpus = buildRagCorpus(workspace);
+  const queryTokens = tokenizeText(query);
+  if (queryTokens.length === 0) {
+    return corpus.slice(0, topK).map((c) => ({ ...c, score: 1 }));
+  }
+
+  const scored: RagChunk[] = corpus.map((item) => {
+    const haystack = `${item.sourceCode} ${item.title} ${item.content}`.toLowerCase();
+    const docTokens = tokenizeText(haystack);
+    let score = 0;
+
+    for (const qToken of queryTokens) {
+      if (item.sourceCode.toLowerCase().includes(qToken)) {
+        score += 6;
+      }
+      if (item.title.toLowerCase().includes(qToken)) {
+        score += 4;
+      }
+      const matches = docTokens.filter((t) => t === qToken || t.includes(qToken)).length;
+      if (matches > 0) {
+        score += Math.min(5, 1 + Math.log1p(matches) * 2);
+      }
+    }
+
+    return {
+      ...item,
+      score: Number(score.toFixed(2)),
+    };
+  });
+
+  const filtered = scored.filter((c) => c.score > 0).sort((a, b) => b.score - a.score);
+  if (filtered.length > 0) {
+    return filtered.slice(0, topK);
+  }
+  return scored.slice(0, topK);
+}
+
+/**
+ * Deterministic local RAG synthesis fallback that generates grounded answers with citations
+ * when offline or when server-side LLM synthesis is unavailable.
+ */
+export function synthesizeLocalRagAnswer(
+  query: string,
+  chunks: RagChunk[],
+  workspace: WorkspaceState
+): { answer: string; citations: string[] } {
+  const sixSigma = computeSixSigmaMetrics(workspace.tasks || []);
+  const citations = chunks.map((c) => `${c.sourceCode}: ${c.title}`);
+
+  const bulletPoints = chunks
+    .slice(0, 4)
+    .map((c) => `• [${c.sourceCode}] ${c.content}`)
+    .join('\n');
+
+  const answer = [
+    `Grounded RAG Analysis for "${query}" across ${workspace.projects?.length || 1} project(s) (${workspace.tasks?.length || 0} tasks, ${sixSigma.sigmaLevel}σ quality, ${sixSigma.dpmo.toLocaleString()} DPMO):`,
+    bulletPoints || '• No matching records found yet. Add tasks, SOP documents, or channel messages to expand the RAG index.',
+  ].join('\n\n');
+
+  return { answer, citations };
+}
+
+/**
+ * Authenticates a user account by email and optional access PIN, returning the active TeamMember.
+ */
+export function authenticateUserAccount(
+  members: TeamMember[],
+  email: string,
+  accessPin?: string
+): { ok: boolean; user?: TeamMember; error?: string } {
+  const normalized = email.trim().toLowerCase();
+  const found = members.find((m) => m.email.trim().toLowerCase() === normalized);
+  if (!found) {
+    return { ok: false, error: 'No user account found with that email address.' };
+  }
+  if (found.status === 'suspended') {
+    return { ok: false, error: 'Account is currently suspended by an Administrator.' };
+  }
+  if (found.accessPin && accessPin !== undefined && accessPin.trim() !== '' && found.accessPin !== accessPin.trim()) {
+    return { ok: false, error: 'Invalid security PIN for this account.' };
+  }
+  return { ok: true, user: found };
+}
+

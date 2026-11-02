@@ -1,15 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { INITIAL_WORKSPACE_STATE } from './data/seedData';
 import {
   AutomationRule,
+  ChatChannel,
+  ChatMessage,
   DashboardWidgetConfig,
   IndustrySector,
+  KnowledgeDocument,
   Milestone,
   NotificationItem,
   OfflineMutation,
   PermissionAction,
+  ProjectEntity,
   Task,
-  TaskStatus,
+  TeamMember,
   TimeEntry,
   UserRole,
   WorkspaceState,
@@ -27,31 +31,48 @@ import {
 } from './utils/projectEngine';
 import { DashboardView } from './components/DashboardView';
 import { TasksAndDependenciesView } from './components/TasksAndDependenciesView';
-import { TopologyScene3D } from './components/TopologyScene3D';
+import { CollaborationAndRagView } from './components/CollaborationAndRagView';
 import { TimeTrackingAndReportsView } from './components/TimeTrackingAndReportsView';
 import { AutomationAndSecurityView } from './components/AutomationAndSecurityView';
+import { SetupInstallerModal } from './components/SetupInstallerModal';
 import {
   Bell,
   Cloud,
   CloudOff,
+  FolderKanban,
   Moon,
   RefreshCw,
+  Settings,
   Shield,
   Sun,
   X,
 } from 'lucide-react';
 
-type ActiveTab = 'dashboard' | 'tasks' | 'topology3d' | 'timetracking' | 'automation';
+type ActiveTab = 'dashboard' | 'tasks' | 'collaboration' | 'timetracking' | 'automation';
 
-const LOCAL_STORAGE_KEY = 'kronosphere_clean_prod_v5';
-const OFFLINE_QUEUE_KEY = 'kronosphere_offline_queue_v5';
+const LOCAL_STORAGE_KEY = 'kronosphere_clean_prod_v6';
+const OFFLINE_QUEUE_KEY = 'kronosphere_offline_queue_v6';
 
 export default function App() {
   const [workspace, setWorkspace] = useState<WorkspaceState>(() => {
     try {
       const cached = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (cached) {
-        return JSON.parse(cached) as WorkspaceState;
+        const parsed = JSON.parse(cached) as WorkspaceState;
+        return {
+          ...INITIAL_WORKSPACE_STATE,
+          ...parsed,
+          projects:
+            Array.isArray(parsed.projects) && parsed.projects.length > 0
+              ? parsed.projects
+              : INITIAL_WORKSPACE_STATE.projects,
+          channels:
+            Array.isArray(parsed.channels) && parsed.channels.length > 0
+              ? parsed.channels
+              : INITIAL_WORKSPACE_STATE.channels,
+          messages: Array.isArray(parsed.messages) ? parsed.messages : [],
+          knowledgeDocs: Array.isArray(parsed.knowledgeDocs) ? parsed.knowledgeDocs : [],
+        };
       }
     } catch {
       // ignore storage errors
@@ -72,14 +93,82 @@ export default function App() {
     }
   });
 
-  const [is3DFullscreen, setIs3DFullscreen] = useState<boolean>(false);
   const [notificationsOpen, setNotificationsOpen] = useState<boolean>(false);
+  const [installerModalOpen, setInstallerModalOpen] = useState<boolean>(false);
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
+
+  // WebSocket Real-Time Collaboration State
+  const wsRef = useRef<WebSocket | null>(null);
+  const [wsConnected, setWsConnected] = useState<boolean>(false);
+  const [onlineUserCount, setOnlineUserCount] = useState<number>(1);
 
   // Live Task Stopwatch State (Clean initial state — 0s)
   const [activeTimerTaskId, setActiveTimerTaskId] = useState<string | null>(null);
   const [timerSeconds, setTimerSeconds] = useState<number>(0);
   const [timerRunning, setTimerRunning] = useState<boolean>(false);
+
+  const currentUser: TeamMember = useMemo(() => {
+    const found = workspace.members.find((m) => m.id === workspace.currentUserId);
+    return (
+      found ||
+      workspace.members[0] || {
+        id: 'usr-admin-1',
+        name: 'System Administrator',
+        role: activeRole,
+        title: 'Master Black Belt & Principal Architect',
+        department: 'Quality & Six Sigma',
+        email: 'admin@enterprise.local',
+        initials: 'SA',
+        avatarHue: 0,
+        capacityHoursPerWeek: 40,
+        hourlyRate: 150,
+        platforms: ['macOS', 'Windows', 'iOS', 'Android'],
+      }
+    );
+  }, [workspace.members, workspace.currentUserId, activeRole]);
+
+  // Active Project entity
+  const activeProject: ProjectEntity = useMemo(() => {
+    const found = workspace.projects.find((p) => p.id === workspace.activeProjectId);
+    return (
+      found ||
+      workspace.projects[0] || {
+        id: 'prj-default-1',
+        name: workspace.projectName,
+        code: workspace.projectCode,
+        industrySector: workspace.industrySector,
+        description: 'Primary operational execution program.',
+        targetSigmaLevel: workspace.targetSigmaLevel || 6.0,
+        leadName: currentUser.name,
+        createdAt: new Date().toISOString(),
+      }
+    );
+  }, [workspace, currentUser.name]);
+
+  // Scoped active project tasks, milestones, and time entries
+  const activeProjectTasks = useMemo(
+    () =>
+      workspace.tasks
+        .filter((t) => !t.projectId || t.projectId === activeProject.id)
+        .sort((a, b) => a.priorityIndex - b.priorityIndex),
+    [workspace.tasks, activeProject.id]
+  );
+
+  const activeProjectMilestones = useMemo(
+    () =>
+      workspace.milestones.filter(
+        (m) => !m.projectId || m.projectId === activeProject.id
+      ),
+    [workspace.milestones, activeProject.id]
+  );
+
+  const activeProjectTimeEntries = useMemo(
+    () =>
+      workspace.timeEntries.filter(
+        (te) => !te.projectId || te.projectId === activeProject.id
+      ),
+    [workspace.timeEntries, activeProject.id]
+  );
 
   // Sync dark mode class on <html>
   useEffect(() => {
@@ -115,7 +204,11 @@ export default function App() {
       .then((res) => (res.ok ? res.json() : null))
       .then((serverData: WorkspaceState | null) => {
         if (mounted && serverData && Array.isArray(serverData.tasks)) {
-          setWorkspace(serverData);
+          setWorkspace((prev) => ({
+            ...INITIAL_WORKSPACE_STATE,
+            ...serverData,
+            isSetupComplete: prev.isSetupComplete || Boolean(serverData.isSetupComplete),
+          }));
         }
       })
       .catch(() => {
@@ -125,6 +218,81 @@ export default function App() {
       mounted = false;
     };
   }, []);
+
+  // Connect to Real-Time WebSocket server (/ws) on same port 3000
+  useEffect(() => {
+    if (isOffline) {
+      wsRef.current?.close();
+      setWsConnected(false);
+      return;
+    }
+
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${proto}//${window.location.host}/ws`;
+    let socket: WebSocket | null = null;
+
+    try {
+      socket = new WebSocket(wsUrl);
+      wsRef.current = socket;
+
+      socket.onopen = () => {
+        setWsConnected(true);
+        socket?.send(
+          JSON.stringify({
+            event: 'user:identify',
+            payload: {
+              userId: currentUser.id,
+              name: currentUser.name,
+              role: activeRole,
+            },
+          })
+        );
+      };
+
+      socket.onmessage = (evt) => {
+        try {
+          const packet = JSON.parse(evt.data);
+          if (packet.event === 'presence:update' && packet.payload) {
+            setOnlineUserCount(Math.max(1, Number(packet.payload.count || 1)));
+          } else if (packet.event === 'message:created' && packet.payload) {
+            const incomingMsg = packet.payload as ChatMessage;
+            setWorkspace((prev) => {
+              if (prev.messages.some((m) => m.id === incomingMsg.id)) {
+                return prev;
+              }
+              return {
+                ...prev,
+                messages: [...prev.messages, incomingMsg],
+              };
+            });
+          } else if (packet.event === 'channel:created' && packet.payload) {
+            const incomingCh = packet.payload as ChatChannel;
+            setWorkspace((prev) => {
+              if (prev.channels.some((c) => c.id === incomingCh.id)) {
+                return prev;
+              }
+              return {
+                ...prev,
+                channels: [...prev.channels, incomingCh],
+              };
+            });
+          }
+        } catch {
+          // ignore
+        }
+      };
+
+      socket.onclose = () => {
+        setWsConnected(false);
+      };
+    } catch {
+      setWsConnected(false);
+    }
+
+    return () => {
+      socket?.close();
+    };
+  }, [isOffline, currentUser.id, currentUser.name, activeRole]);
 
   // Stopwatch interval
   useEffect(() => {
@@ -136,19 +304,19 @@ export default function App() {
   }, [timerRunning]);
 
   const criticalPath = useMemo(
-    () => computeCriticalPath(workspace.tasks),
-    [workspace.tasks]
+    () => computeCriticalPath(activeProjectTasks),
+    [activeProjectTasks]
   );
 
   const analytics = useMemo(
     () =>
       computeProjectAnalytics(
-        workspace.tasks,
-        workspace.timeEntries,
-        workspace.milestones,
+        activeProjectTasks,
+        activeProjectTimeEntries,
+        activeProjectMilestones,
         workspace.members
       ),
-    [workspace.tasks, workspace.timeEntries, workspace.milestones, workspace.members]
+    [activeProjectTasks, activeProjectTimeEntries, activeProjectMilestones, workspace.members]
   );
 
   const canPerform = (action: PermissionAction): boolean =>
@@ -189,10 +357,122 @@ export default function App() {
     }
   };
 
+  const handleCompleteFirstLoadSetup = (payload: {
+    organizationName: string;
+    organizationDomain: string;
+    targetSigmaLevel: number;
+    projects: ProjectEntity[];
+    members: TeamMember[];
+    channels: ChatChannel[];
+    knowledgeDocs: KnowledgeDocument[];
+  }) => {
+    const firstProj = payload.projects[0] || INITIAL_WORKSPACE_STATE.projects[0];
+    const firstMember = payload.members[0] || INITIAL_WORKSPACE_STATE.members[0];
+
+    const nextState: WorkspaceState = {
+      ...workspace,
+      isSetupComplete: true,
+      organizationName: payload.organizationName,
+      organizationDomain: payload.organizationDomain,
+      targetSigmaLevel: payload.targetSigmaLevel,
+      projects: payload.projects,
+      activeProjectId: firstProj.id,
+      projectName: firstProj.name,
+      projectCode: firstProj.code,
+      industrySector: firstProj.industrySector,
+      members: payload.members,
+      currentUserId: firstMember.id,
+      channels: payload.channels,
+      knowledgeDocs: [
+        ...payload.knowledgeDocs,
+        ...workspace.knowledgeDocs.filter(
+          (d) => !payload.knowledgeDocs.some((nd) => nd.code === d.code)
+        ),
+      ],
+    };
+
+    setActiveRole(firstMember.role);
+    setInstallerModalOpen(false);
+    pushOrQueueUpdate(
+      nextState,
+      'SWITCH_PROJECT',
+      `Completed enterprise system setup for ${payload.organizationName} (${payload.projects.length} project(s))`
+    );
+    setStatusBanner(
+      `System installation complete: ${payload.organizationName} · ${payload.projects.length} project(s) · ${payload.members.length} RBAC user(s).`
+    );
+  };
+
+  const handleSelectProject = (projectId: string) => {
+    const target = workspace.projects.find((p) => p.id === projectId);
+    if (!target) return;
+    const nextState: WorkspaceState = {
+      ...workspace,
+      activeProjectId: target.id,
+      projectName: target.name,
+      projectCode: target.code,
+      industrySector: target.industrySector,
+    };
+    pushOrQueueUpdate(
+      nextState,
+      'SWITCH_PROJECT',
+      `Switched active project to ${target.code}: ${target.name}`
+    );
+    setStatusBanner(`Switched active project to ${target.code} (${target.name}).`);
+  };
+
+  const handleCreateProject = (projInput: Omit<ProjectEntity, 'id' | 'createdAt'>) => {
+    const created: ProjectEntity = {
+      ...projInput,
+      id: `prj-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    const nextState: WorkspaceState = {
+      ...workspace,
+      projects: [...workspace.projects, created],
+      activeProjectId: created.id,
+      projectName: created.name,
+      projectCode: created.code,
+      industrySector: created.industrySector,
+    };
+    pushOrQueueUpdate(
+      nextState,
+      'SWITCH_PROJECT',
+      `Created & activated project ${created.code}: ${created.name}`
+    );
+    setStatusBanner(
+      `Created & switched to project ${created.code}: ${created.name} (${created.industrySector}).`
+    );
+  };
+
+  const handleUpdateWorkspaceMeta = (meta: {
+    projectName?: string;
+    projectCode?: string;
+    industrySector?: IndustrySector;
+  }) => {
+    const updatedProjects = workspace.projects.map((p) =>
+      p.id === activeProject.id
+        ? {
+            ...p,
+            name: meta.projectName ?? p.name,
+            code: meta.projectCode ?? p.code,
+            industrySector: meta.industrySector ?? p.industrySector,
+          }
+        : p
+    );
+    const nextState: WorkspaceState = {
+      ...workspace,
+      ...meta,
+      projects: updatedProjects,
+    };
+    pushOrQueueUpdate(nextState, 'UPDATE_TASK', 'Updated active project metadata');
+  };
+
   const handleSyncCloudNow = async () => {
     const nowIso = new Date().toISOString();
     const syncedNote: NotificationItem = {
       id: `ntf-sync-${Date.now()}`,
+      projectId: activeProject.id,
       title: 'Cloud Synchronization Complete',
       message:
         offlineQueue.length > 0
@@ -226,27 +506,16 @@ export default function App() {
     }
   };
 
-  const handleUpdateWorkspaceMeta = (meta: {
-    projectName?: string;
-    projectCode?: string;
-    industrySector?: IndustrySector;
-  }) => {
-    const nextState: WorkspaceState = {
-      ...workspace,
-      ...meta,
-    };
-    pushOrQueueUpdate(nextState, 'UPDATE_TASK', 'Updated workspace operational metadata');
-  };
-
   const handleCreateTask = (
     newTaskInput: Omit<Task, 'id' | 'code' | 'loggedHours' | 'updatedAt' | 'priorityIndex'>
   ) => {
     const nextNum = 101 + workspace.tasks.length;
     const nowIso = new Date().toISOString();
-    const nextPriorityIndex = workspace.tasks.length;
+    const nextPriorityIndex = activeProjectTasks.length;
     const created: Task = {
       ...newTaskInput,
       id: `tsk-${Date.now()}-${nextNum}`,
+      projectId: activeProject.id,
       code: `KRN-${nextNum}`,
       priorityIndex: nextPriorityIndex,
       loggedHours: 0,
@@ -260,17 +529,23 @@ export default function App() {
       nowIso
     );
 
-    const nextTasks = [...workspace.tasks, autoRes.updatedTask].map((t, idx) => ({
-      ...t,
-      priorityIndex: idx,
-    }));
+    const otherProjectTasks = workspace.tasks.filter(
+      (t) => t.projectId && t.projectId !== activeProject.id
+    );
+    const updatedActiveTasks = [...activeProjectTasks, autoRes.updatedTask].map(
+      (t, idx) => ({
+        ...t,
+        priorityIndex: idx,
+      })
+    );
 
     const nextState: WorkspaceState = {
       ...workspace,
-      tasks: nextTasks,
+      tasks: [...otherProjectTasks, ...updatedActiveTasks],
       notifications: [
         {
           id: `ntf-create-${Date.now()}`,
+          projectId: activeProject.id,
           title: `Deliverable Created: ${created.code}`,
           message: `${created.title} (${created.dmaicPhase} phase · priorityIndex #${nextPriorityIndex}).`,
           severity: 'info',
@@ -298,13 +573,12 @@ export default function App() {
   const handleCreateMilestone = (
     newMilestoneInput: Omit<Milestone, 'id' | 'code' | 'position3D'>
   ) => {
-    const idx = workspace.milestones.length + 1;
-    const xPos = -10 + ((idx - 1) % 5) * 5;
+    const idx = activeProjectMilestones.length + 1;
     const created: Milestone = {
       ...newMilestoneInput,
       id: `ms-${Date.now()}`,
+      projectId: activeProject.id,
       code: `MS-0${idx}`,
-      position3D: [xPos, 0, -5],
     };
 
     const nextState: WorkspaceState = {
@@ -320,19 +594,22 @@ export default function App() {
   };
 
   const handleReorderTasks = (sourceTaskId: string, targetTaskId: string) => {
-    const reordered = reorderTasksByPriorityIndex(
-      workspace.tasks,
+    const reorderedActive = reorderTasksByPriorityIndex(
+      activeProjectTasks,
       sourceTaskId,
       targetTaskId
     );
-    const movedTask = reordered.find((t) => t.id === sourceTaskId);
+    const otherTasks = workspace.tasks.filter(
+      (t) => t.projectId && t.projectId !== activeProject.id
+    );
+    const movedTask = reorderedActive.find((t) => t.id === sourceTaskId);
     const nextState: WorkspaceState = {
       ...workspace,
-      tasks: reordered,
+      tasks: [...otherTasks, ...reorderedActive],
     };
     pushOrQueueUpdate(
       nextState,
-      'UPDATE_TASK',
+      'REORDER_TASKS',
       `Reordered task priority: ${movedTask?.code ?? sourceTaskId} -> priorityIndex ${
         movedTask?.priorityIndex ?? 0
       }`
@@ -347,15 +624,18 @@ export default function App() {
   };
 
   const handleMoveTaskPriority = (taskId: string, direction: -1 | 1) => {
-    const reordered = moveTaskPriorityStep(workspace.tasks, taskId, direction);
-    const movedTask = reordered.find((t) => t.id === taskId);
+    const reorderedActive = moveTaskPriorityStep(activeProjectTasks, taskId, direction);
+    const otherTasks = workspace.tasks.filter(
+      (t) => t.projectId && t.projectId !== activeProject.id
+    );
+    const movedTask = reorderedActive.find((t) => t.id === taskId);
     const nextState: WorkspaceState = {
       ...workspace,
-      tasks: reordered,
+      tasks: [...otherTasks, ...reorderedActive],
     };
     pushOrQueueUpdate(
       nextState,
-      'UPDATE_TASK',
+      'REORDER_TASKS',
       `Adjusted priorityIndex for ${movedTask?.code ?? taskId} to ${
         movedTask?.priorityIndex ?? 0
       }`
@@ -413,7 +693,10 @@ export default function App() {
   const handleDeleteTask = (taskId: string) => {
     const target = workspace.tasks.find((t) => t.id === taskId);
     if (!target) return;
-    const nextTasks = workspace.tasks
+    const otherTasks = workspace.tasks.filter(
+      (t) => t.projectId && t.projectId !== activeProject.id
+    );
+    const nextActiveTasks = activeProjectTasks
       .filter((t) => t.id !== taskId)
       .sort((a, b) => a.priorityIndex - b.priorityIndex)
       .map((t, idx) => ({
@@ -424,9 +707,165 @@ export default function App() {
 
     const nextState: WorkspaceState = {
       ...workspace,
-      tasks: nextTasks,
+      tasks: [...otherTasks, ...nextActiveTasks],
     };
     pushOrQueueUpdate(nextState, 'DELETE_TASK', `Deleted task ${target.code}`);
+  };
+
+  // Collaboration & RAG Handlers
+  const handleSendMessage = (
+    channelId: string,
+    content: string,
+    threadParentId?: string,
+    ragData?: { isRagResponse: boolean; citations: string[] }
+  ) => {
+    const msg: ChatMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      channelId,
+      projectId: activeProject.id,
+      senderId: currentUser.id,
+      senderName: ragData?.isRagResponse ? 'KronoSphere RAG Copilot' : currentUser.name,
+      senderRole: currentUser.role,
+      content,
+      timestamp: new Date().toISOString(),
+      threadParentId,
+      reactions: {},
+      isRagResponse: ragData?.isRagResponse,
+      citations: ragData?.citations,
+    };
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ event: 'message:create', payload: msg }));
+    }
+
+    const nextState: WorkspaceState = {
+      ...workspace,
+      messages: [...workspace.messages, msg],
+    };
+    pushOrQueueUpdate(nextState, 'SEND_MESSAGE', `Posted message in channel`);
+  };
+
+  const handleToggleReaction = (messageId: string, reactionKey: string) => {
+    const nextMessages = workspace.messages.map((m) => {
+      if (m.id !== messageId) return m;
+      const existingUsers = m.reactions?.[reactionKey] || [];
+      const hasReacted = existingUsers.includes(currentUser.id);
+      const nextUsers = hasReacted
+        ? existingUsers.filter((u) => u !== currentUser.id)
+        : [...existingUsers, currentUser.id];
+      return {
+        ...m,
+        reactions: {
+          ...(m.reactions || {}),
+          [reactionKey]: nextUsers,
+        },
+      };
+    });
+    setWorkspace((prev) => ({ ...prev, messages: nextMessages }));
+  };
+
+  const handleCreateChannel = (name: string, topic: string, isPrivate: boolean) => {
+    const slug = name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]/g, '-');
+    const created: ChatChannel = {
+      id: `chn-${Date.now()}`,
+      projectId: activeProject.id,
+      name: slug,
+      topic,
+      isPrivate,
+      type: 'channel',
+      createdAt: new Date().toISOString(),
+    };
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ event: 'channel:create', payload: created }));
+    }
+    const nextState: WorkspaceState = {
+      ...workspace,
+      channels: [...workspace.channels, created],
+    };
+    pushOrQueueUpdate(nextState, 'SEND_MESSAGE', `Created channel #${slug}`);
+  };
+
+  const handleAddKnowledgeDoc = (
+    docInput: Omit<KnowledgeDocument, 'id' | 'code' | 'updatedAt'>
+  ) => {
+    const idx = workspace.knowledgeDocs.length + 1;
+    const created: KnowledgeDocument = {
+      ...docInput,
+      id: `doc-${Date.now()}`,
+      code: `SOP-0${idx}`,
+      updatedAt: new Date().toISOString(),
+    };
+    const nextState: WorkspaceState = {
+      ...workspace,
+      knowledgeDocs: [created, ...workspace.knowledgeDocs],
+    };
+    pushOrQueueUpdate(
+      nextState,
+      'UPDATE_TASK',
+      `Indexed document ${created.code}: ${created.title} into RAG Knowledge Base`
+    );
+    setStatusBanner(`Indexed ${created.code} (${created.title}) into RAG Knowledge Base.`);
+  };
+
+  // RBAC User Authentication & Directory Handlers
+  const handleAuthenticateUser = (user: TeamMember) => {
+    setActiveRole(user.role);
+    setWorkspace((prev) => ({ ...prev, currentUserId: user.id }));
+    setStatusBanner(`Authenticated session switched to ${user.name} (${user.role}).`);
+  };
+
+  const handleCreateMember = (
+    memberInput: Omit<TeamMember, 'id' | 'initials' | 'avatarHue'>
+  ) => {
+    const initials = memberInput.name
+      .trim()
+      .split(/\s+/)
+      .map((p) => p[0]?.toUpperCase() || '')
+      .join('')
+      .slice(0, 2);
+
+    const created: TeamMember = {
+      ...memberInput,
+      id: `usr-${Date.now()}`,
+      initials: initials || 'US',
+      avatarHue: 0,
+    };
+    const nextState: WorkspaceState = {
+      ...workspace,
+      members: [...workspace.members, created],
+    };
+    pushOrQueueUpdate(
+      nextState,
+      'UPDATE_TASK',
+      `Provisioned RBAC user ${created.name} (${created.role})`
+    );
+  };
+
+  const handleUpdateMemberRole = (memberId: string, role: UserRole) => {
+    const nextMembers = workspace.members.map((m) =>
+      m.id === memberId ? { ...m, role } : m
+    );
+    if (memberId === currentUser.id) {
+      setActiveRole(role);
+    }
+    pushOrQueueUpdate(
+      { ...workspace, members: nextMembers },
+      'UPDATE_TASK',
+      `Updated user role to ${role}`
+    );
+  };
+
+  const handleDeleteMember = (memberId: string) => {
+    if (workspace.members.length <= 1) return;
+    const nextMembers = workspace.members.filter((m) => m.id !== memberId);
+    pushOrQueueUpdate(
+      { ...workspace, members: nextMembers },
+      'UPDATE_TASK',
+      'Removed user from RBAC directory'
+    );
   };
 
   const handleStartTimer = (taskId: string) => {
@@ -445,8 +884,9 @@ export default function App() {
     if (!activeTimerTaskId || timerSeconds <= 0) return;
     const durationMinutes = Math.max(15, Math.round(timerSeconds / 60));
     handleLogManualTime({
+      projectId: activeProject.id,
       taskId: activeTimerTaskId,
-      userId: 'usr-operator',
+      userId: currentUser.id,
       date: new Date().toISOString().slice(0, 10),
       durationMinutes,
       billable: true,
@@ -459,6 +899,7 @@ export default function App() {
   const handleLogManualTime = (entryInput: Omit<TimeEntry, 'id'>) => {
     const newEntry: TimeEntry = {
       ...entryInput,
+      projectId: activeProject.id,
       id: `tm-${Date.now()}`,
     };
     const additionalHours = Number((entryInput.durationMinutes / 60).toFixed(1));
@@ -488,42 +929,42 @@ export default function App() {
 
   const handleExportCsv = () => {
     const csv = generateCsvReport(
-      workspace.tasks,
-      workspace.timeEntries,
+      activeProjectTasks,
+      activeProjectTimeEntries,
       workspace.members
     );
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'kronosphere-analytics-2026.csv';
+    link.download = `${activeProject.code.toLowerCase()}-analytics-2026.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     setStatusBanner(
-      `Exported CSV dataset (kronosphere-analytics-2026.csv · ${workspace.tasks.length} tasks, ${workspace.timeEntries.length} time entries).`
+      `Exported CSV dataset (${activeProject.code.toLowerCase()}-analytics-2026.csv · ${activeProjectTasks.length} tasks).`
     );
   };
 
   const handleExportPdf = () => {
     const pdfBytes = generatePdfBinary(
-      workspace.projectName,
+      activeProject.name,
       analytics,
-      workspace.tasks,
-      workspace.milestones
+      activeProjectTasks,
+      activeProjectMilestones
     );
     const blob = new Blob([pdfBytes], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'kronosphere-executive-report-2026.pdf';
+    link.download = `${activeProject.code.toLowerCase()}-executive-report-2026.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     setStatusBanner(
-      `Exported PDF 1.4 Executive Report (kronosphere-executive-report-2026.pdf · ${pdfBytes.byteLength} bytes).`
+      `Exported PDF 1.4 Executive Report (${activeProject.code.toLowerCase()}-executive-report-2026.pdf · ${pdfBytes.byteLength} bytes).`
     );
   };
 
@@ -531,6 +972,18 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-white text-zinc-950 dark:bg-black dark:text-zinc-100 font-sans">
+      {/* First-Load Enterprise Installation & Multi-Project Provisioning Wizard */}
+      {(!workspace.isSetupComplete || installerModalOpen) && (
+        <SetupInstallerModal
+          initialOrgName={workspace.organizationName}
+          initialDomain={workspace.organizationDomain}
+          initialProjects={workspace.projects}
+          initialMembers={workspace.members}
+          initialChannels={workspace.channels}
+          onCompleteSetup={handleCompleteFirstLoadSetup}
+        />
+      )}
+
       {/* Strict 3-Zone Top Bar Contract — Pure Black & White Architectural Minimalism */}
       <header className="flex items-center justify-between gap-4 md:gap-8 px-4 sm:px-6 py-3.5 border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 sticky top-0 z-30">
         {/* Zone 1: Single text element wordmark */}
@@ -545,7 +998,7 @@ export default function App() {
           KronoSphere
         </a>
 
-        {/* Zone 2: 5 concise single-line navigation links */}
+        {/* Zone 2: 5 concise single-line navigation links (3D Topology removed; Collaboration & RAG added) */}
         <nav
           aria-label="Primary Workspace Navigation"
           className="hidden md:flex items-center gap-6 text-sm font-medium text-zinc-500 dark:text-zinc-400"
@@ -554,9 +1007,9 @@ export default function App() {
             [
               { id: 'dashboard', label: 'Dashboard' },
               { id: 'tasks', label: 'Tasks & DAG' },
-              { id: 'topology3d', label: '3D Topology' },
+              { id: 'collaboration', label: 'Collaboration & RAG' },
               { id: 'timetracking', label: 'Time & Reports' },
-              { id: 'automation', label: 'Automation & RBAC' },
+              { id: 'automation', label: 'Users, RBAC & Automation' },
             ] as const
           ).map((item) => (
             <button
@@ -595,9 +1048,9 @@ export default function App() {
           [
             { id: 'dashboard', label: 'Dashboard' },
             { id: 'tasks', label: 'Tasks & DAG' },
-            { id: 'topology3d', label: '3D Topology' },
+            { id: 'collaboration', label: 'Channels & RAG' },
             { id: 'timetracking', label: 'Time & Reports' },
-            { id: 'automation', label: 'Automation' },
+            { id: 'automation', label: 'Users & RBAC' },
           ] as const
         ).map((item) => (
           <button
@@ -615,19 +1068,43 @@ export default function App() {
         ))}
       </nav>
 
-      {/* Secondary Workspace Control Bar (Below Header Fold) */}
+      {/* Secondary Multi-Project & RBAC Session Control Bar */}
       <div className="px-6 py-2.5 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/80 flex flex-wrap items-center justify-between gap-3 text-xs">
         <div className="flex flex-wrap items-center gap-3 text-zinc-600 dark:text-zinc-400">
-          <span className="font-mono font-semibold text-zinc-950 dark:text-white">
-            {workspace.projectCode}
+          <span className="font-semibold text-zinc-950 dark:text-white">
+            {workspace.organizationName}
           </span>
           <span aria-hidden="true">·</span>
-          <span>{workspace.industrySector}</span>
+
+          {/* Multi-Project Portfolio Selector */}
+          <label className="inline-flex items-center gap-1.5">
+            <FolderKanban className="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100" />
+            <span className="sr-only">Active Project</span>
+            <select
+              value={activeProject.id}
+              onChange={(e) => handleSelectProject(e.target.value)}
+              data-testid="global-project-switcher"
+              className="px-2 py-0.5 text-xs font-mono font-semibold rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-950 dark:text-white"
+            >
+              {workspace.projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.code} — {p.name} ({p.industrySector.split(' ')[0]})
+                </option>
+              ))}
+            </select>
+          </label>
+
           <span aria-hidden="true">·</span>
-          <span className="inline-flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('automation')}
+            className="inline-flex items-center gap-1 hover:underline"
+          >
             <Shield className="w-3.5 h-3.5 text-zinc-900 dark:text-zinc-100" />
-            Role: <strong className="text-zinc-950 dark:text-white">{activeRole}</strong>
-          </span>
+            <span>
+              User: <strong className="text-zinc-950 dark:text-white">{currentUser.name}</strong> ({activeRole})
+            </span>
+          </button>
           <span aria-hidden="true">·</span>
           <span className="font-mono tabular-nums">
             Chronometer: {Math.floor(timerSeconds / 60)}m {timerSeconds % 60}s
@@ -635,6 +1112,17 @@ export default function App() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Re-Open First-Load System Setup Wizard */}
+          <button
+            type="button"
+            onClick={() => setInstallerModalOpen(true)}
+            data-testid="open-setup-wizard-btn"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors whitespace-nowrap shrink-0"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>System Setup</span>
+          </button>
+
           {/* Offline Mode Toggle */}
           <button
             type="button"
@@ -797,19 +1285,23 @@ export default function App() {
       <main className="flex-1 max-w-[1440px] w-full mx-auto px-6 py-6">
         {activeTab === 'dashboard' && (
           <DashboardView
-            projectName={workspace.projectName}
-            projectCode={workspace.projectCode}
-            industrySector={workspace.industrySector}
+            projectName={activeProject.name}
+            projectCode={activeProject.code}
+            industrySector={activeProject.industrySector}
+            projects={workspace.projects}
+            activeProjectId={activeProject.id}
             analytics={analytics}
             criticalPath={criticalPath}
-            milestones={workspace.milestones}
-            tasks={workspace.tasks}
+            milestones={activeProjectMilestones}
+            tasks={activeProjectTasks}
             notifications={workspace.notifications}
             widgets={workspace.widgets}
             isOffline={isOffline}
             pendingOfflineCount={offlineQueue.length}
             lastSyncedAt={workspace.lastSyncedAt}
             encryptionFingerprint={workspace.encryptionKeyFingerprint}
+            onSelectProject={handleSelectProject}
+            onCreateProject={handleCreateProject}
             onUpdateWorkspaceMeta={handleUpdateWorkspaceMeta}
             onUpdateWidgets={(nextWidgets: DashboardWidgetConfig[]) =>
               setWorkspace((prev) => ({ ...prev, widgets: nextWidgets }))
@@ -823,19 +1315,19 @@ export default function App() {
 
         {activeTab === 'tasks' && (
           <TasksAndDependenciesView
-            tasks={workspace.tasks}
-            milestones={workspace.milestones}
+            tasks={activeProjectTasks}
+            milestones={activeProjectMilestones}
             members={workspace.members}
             criticalPath={criticalPath}
             activeRole={activeRole}
-            defaultSector={workspace.industrySector}
+            defaultSector={activeProject.industrySector}
             canPerform={canPerform}
             activeTimerTaskId={activeTimerTaskId}
             onStartTimer={(taskId) => {
               handleStartTimer(taskId);
               setStatusBanner(
                 `Started live task timer for ${
-                  workspace.tasks.find((t) => t.id === taskId)?.code ?? taskId
+                  activeProjectTasks.find((t) => t.id === taskId)?.code ?? taskId
                 }.`
               );
             }}
@@ -848,24 +1340,24 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'topology3d' && (
-          <TopologyScene3D
-            tasks={workspace.tasks}
-            milestones={workspace.milestones}
-            criticalPath={criticalPath}
-            isFullscreen={is3DFullscreen}
-            onToggleFullscreen={() => setIs3DFullscreen((prev) => !prev)}
-            onUpdateTaskStatus={(taskId: string, nextStatus: TaskStatus) =>
-              handleUpdateTask(taskId, { status: nextStatus })
-            }
+        {activeTab === 'collaboration' && (
+          <CollaborationAndRagView
+            workspace={workspace}
+            currentUser={currentUser}
+            wsConnected={wsConnected}
+            onlineUserCount={onlineUserCount}
+            onSendMessage={handleSendMessage}
+            onToggleReaction={handleToggleReaction}
+            onCreateChannel={handleCreateChannel}
+            onAddKnowledgeDoc={handleAddKnowledgeDoc}
           />
         )}
 
         {activeTab === 'timetracking' && (
           <TimeTrackingAndReportsView
-            tasks={workspace.tasks}
+            tasks={activeProjectTasks}
             members={workspace.members}
-            timeEntries={workspace.timeEntries}
+            timeEntries={activeProjectTimeEntries}
             analytics={analytics}
             activeRole={activeRole}
             canPerform={canPerform}
@@ -883,12 +1375,18 @@ export default function App() {
 
         {activeTab === 'automation' && (
           <AutomationAndSecurityView
+            members={workspace.members}
+            currentUser={currentUser}
             automations={workspace.automations}
             permissions={workspace.permissions}
             files={workspace.files}
             activeRole={activeRole}
             canPerform={canPerform}
             onChangeActiveRole={setActiveRole}
+            onAuthenticateUser={handleAuthenticateUser}
+            onCreateMember={handleCreateMember}
+            onUpdateMemberRole={handleUpdateMemberRole}
+            onDeleteMember={handleDeleteMember}
             onToggleAutomation={(ruleId) => {
               const nextRules = workspace.automations.map((r) =>
                 r.id === ruleId ? { ...r, enabled: !r.enabled } : r
@@ -903,6 +1401,7 @@ export default function App() {
               const created: AutomationRule = {
                 ...newRule,
                 id: `auto-${Date.now()}`,
+                projectId: activeProject.id,
                 executionCount: 0,
               };
               pushOrQueueUpdate(
@@ -938,7 +1437,7 @@ export default function App() {
       {/* Clean Minimalist Monochrome Footer */}
       <footer className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 dark:text-zinc-400 flex flex-col sm:flex-row items-center justify-between gap-2">
         <div>
-          KronoSphere Enterprise Execution & Lean Six Sigma (DMAIC) Suite · Apache-2.0 License
+          KronoSphere Multi-Project Execution, Six Sigma (DMAIC) & RAG Collaboration Suite · Apache-2.0 License
         </div>
         <div className="flex items-center gap-4">
           <span>Cross-Platform Sync: macOS · Windows · iOS · Android</span>

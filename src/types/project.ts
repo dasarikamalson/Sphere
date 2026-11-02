@@ -46,10 +46,25 @@ export interface TeamMember {
   capacityHoursPerWeek: number;
   hourlyRate: number;
   platforms: ('macOS' | 'Windows' | 'iOS' | 'Android')[];
+  status?: 'active' | 'invited' | 'suspended';
+  accessPin?: string;
+  createdAt?: string;
+}
+
+export interface ProjectEntity {
+  id: string;
+  name: string;
+  code: string;
+  industrySector: IndustrySector;
+  description: string;
+  targetSigmaLevel: number;
+  leadName: string;
+  createdAt: string;
 }
 
 export interface Milestone {
   id: string;
+  projectId?: string;
   title: string;
   code: string;
   targetDate: string;
@@ -57,11 +72,12 @@ export interface Milestone {
   progress: number;
   isCritical: boolean;
   description: string;
-  position3D: [number, number, number];
+  position3D?: [number, number, number];
 }
 
 export interface Task {
   id: string;
+  projectId?: string;
   code: string;
   title: string;
   description: string;
@@ -86,6 +102,7 @@ export interface Task {
 
 export interface TimeEntry {
   id: string;
+  projectId?: string;
   taskId: string;
   userId: string;
   date: string;
@@ -110,6 +127,7 @@ export type AutomationActionType =
 
 export interface AutomationRule {
   id: string;
+  projectId?: string;
   name: string;
   department: string;
   trigger: AutomationTriggerType;
@@ -121,6 +139,7 @@ export interface AutomationRule {
 
 export interface NotificationItem {
   id: string;
+  projectId?: string;
   title: string;
   message: string;
   severity: 'info' | 'warning' | 'critical' | 'success';
@@ -132,6 +151,7 @@ export interface NotificationItem {
 
 export type WidgetId =
   | 'six_sigma_dmaic'
+  | 'dmaic_methodology'
   | 'velocity_burndown'
   | 'department_workload'
   | 'milestone_tracker'
@@ -149,6 +169,7 @@ export interface DashboardWidgetConfig {
 
 export interface FileVaultItem {
   id: string;
+  projectId?: string;
   name: string;
   department: string;
   sizeKb: number;
@@ -161,6 +182,45 @@ export interface FileVaultItem {
   summary: string;
 }
 
+export interface ChatChannel {
+  id: string;
+  projectId?: string; // undefined or 'all' means cross-project organization channel
+  name: string;
+  topic: string;
+  isPrivate: boolean;
+  type: 'channel' | 'dm';
+  participants?: string[]; // user IDs for DM or private channel
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  channelId: string;
+  projectId?: string;
+  senderId: string;
+  senderName: string;
+  senderRole: UserRole;
+  content: string;
+  timestamp: string;
+  threadParentId?: string;
+  linkedTaskCode?: string;
+  reactions: Record<string, string[]>; // reaction label -> array of userIds
+  isRagResponse?: boolean;
+  citations?: string[];
+}
+
+export interface KnowledgeDocument {
+  id: string;
+  projectId?: string;
+  code: string;
+  title: string;
+  category: 'SOP' | 'Six Sigma Charter' | 'Engineering Spec' | 'Safety & Compliance' | 'Run of Show';
+  dmaicPhase: DmaicPhase;
+  content: string;
+  authorName: string;
+  updatedAt: string;
+}
+
 export interface OfflineMutation {
   id: string;
   type:
@@ -169,13 +229,22 @@ export interface OfflineMutation {
     | 'REORDER_TASKS'
     | 'DELETE_TASK'
     | 'LOG_TIME'
-    | 'TOGGLE_AUTOMATION';
+    | 'TOGGLE_AUTOMATION'
+    | 'SEND_MESSAGE'
+    | 'SWITCH_PROJECT';
   summary: string;
   timestamp: string;
   payload: unknown;
 }
 
 export interface WorkspaceState {
+  isSetupComplete: boolean;
+  organizationName: string;
+  organizationDomain: string;
+  targetSigmaLevel: number;
+  activeProjectId: string;
+  projects: ProjectEntity[];
+  currentUserId: string | null;
   projectName: string;
   projectCode: string;
   industrySector: IndustrySector;
@@ -189,5 +258,8 @@ export interface WorkspaceState {
   notifications: NotificationItem[];
   widgets: DashboardWidgetConfig[];
   files: FileVaultItem[];
+  channels: ChatChannel[];
+  messages: ChatMessage[];
+  knowledgeDocs: KnowledgeDocument[];
   permissions: RolePermissionMatrix;
 }

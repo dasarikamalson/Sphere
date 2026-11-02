@@ -1,114 +1,84 @@
-# KronoSphere — Open-Source Enterprise Project Execution, Time Intelligence & Lean Six Sigma (DMAIC) Platform
+# KronoSphere — Open-Source Multi-Project Execution, Six Sigma (DMAIC), Real-Time Messaging & Enterprise RAG Suite
 
-**KronoSphere** is a production-grade, open-source project management, critical-path scheduling, time-tracking, and **Lean Six Sigma (DMAIC)** quality control platform built with **React 19**, **TypeScript**, **Three.js**, and **Node.js / Express**.
+**KronoSphere** is a production-grade, open-source multi-project management, critical-path scheduling, time-tracking, **Lean Six Sigma (DMAIC)** quality control, **Slack-style real-time collaboration**, and **Retrieval-Augmented Generation (RAG)** platform built with **React 19**, **TypeScript**, **WebSockets (`ws`)**, **Gemini (`@google/genai`)**, and **Node.js / Express**.
 
-Designed with an ultra-clean **Black & White monochrome architectural interface** and exclusive **Inter** typography (`tabular-nums`), KronoSphere ships with **zero pre-populated demo data** so engineering, construction, event production, and operations teams can immediately initialize clean production programs.
+Designed with an ultra-clean **Black & White monochrome architectural interface** and exclusive **Inter** typography (`tabular-nums`), KronoSphere ships with **zero pre-populated demo data** and includes an **Advanced First-Load Enterprise Installation & Provisioning Wizard**.
 
 ---
 
-## Key Capabilities
+## Core Capabilities
 
-### 1. Multi-Industry Real-World Operational Templates
-KronoSphere adapts across mission-critical operational verticals:
-- **Construction & Civil Engineering**: Structural structural pours, MEP rough-ins, safety inspections, crane/rigging critical paths, and punch-list defect tracking.
-- **Event Production & Live Broadcast**: Stage rigging, AV/lighting signal verification, vendor load-in windows, pyrotechnics safety sign-off, and run-of-show synchronization.
-- **Tech Application Development**: Distributed system architecture, API security audits, zero-downtime database migrations, CI/CD release gates, and SLA regression tracking.
-- **Manufacturing & Operations**: Supply-chain qualification, assembly line takt-time optimization, statistical process control (SPC), and ISO compliance audits.
+### 1. Advanced First-Load Installation & Multi-Project Portfolio Engine
+- **4-Step Enterprise Setup System**: Launches on initial boot (`SetupInstallerModal.tsx`) to provision:
+  1. **Organization Identity, AES-GCM-256 Vault & Target Six Sigma Level ($3.0\sigma$–$6.0\sigma$)**
+  2. **Root Administrator & Role-Based User Accounts (RBAC Directory)**
+  3. **Multi-Project Portfolio** across **Construction & Civil**, **Event Production**, **Tech Development**, and **Manufacturing & Ops**
+  4. **Slack-Style Collaboration Channels & Initial RAG Knowledge Base**
+- **Multi-Project Isolation & Portfolio Switching**: Switch instantaneously between projects in the global control bar or Dashboard portfolio strip while retaining cross-project RAG search.
 
-### 2. Lean Six Sigma (DMAIC) & Process Capability Engine
-Every deliverable is mapped to a **DMAIC Phase** (`Define`, `Measure`, `Analyze`, `Improve`, `Control`) and tracks **Defects ($D$)** alongside **Inspection Opportunities per Unit ($O$)**:
-- **DPMO (Defects Per Million Opportunities)**:
+### 2. Six Sigma DMAIC Methodology Panel & Statistical Quality Control
+- **Interactive DMAIC Methodology & Tool Mapping Panel (`DashboardView.tsx`)**:
+  - Designed for non-technical users, explaining in plain language how **Define, Measure, Analyze, Improve, and Control** map directly to KronoSphere modules, complete with sector-specific playbooks and 1-click navigation links.
+- **Live DPMO, Sigma Level ($\sigma$), First-Pass Yield (%) & $C_{pk}$**:
   $$\text{DPMO} = \frac{\sum D}{\sum O} \times 1,000,000$$
-- **Sigma Level ($\sigma$)**: Automatically interpolated with the standard $1.5\sigma$ long-term process shift (up to $6.0\sigma$ world-class quality at $\le 3.4\text{ DPMO}$).
-- **First-Pass Yield (%) & Process Capability Index ($C_{pk}$)**: Live calculation of process capability and phase-by-phase DMAIC gate distribution.
 
-### 3. Drag-and-Drop Priority Reordering (`priorityIndex`) & DAG Critical Path
-- **Interactive Priority Queue**: Drag and drop tasks directly within the **Priority Order & DAG Table** (or use accessible keyboard/step controls) to reorder execution priority. Every reorder operation deterministically recalculates sequential `priorityIndex` values (`0..n-1`) across the application state and persists immediately.
-- **Cycle-Safe Dependency Graph (DAG)**: Adding upstream task dependencies runs a depth-first cycle detector (`hasDependencyCycle`) before committing, preventing circular schedules.
-- **Critical Path Method (CPM)**: Automatically computes forward-pass Earliest Start (`ES`), Earliest Finish (`EF`), total project duration, and slack floats across all tasks.
+### 3. Drag-and-Drop Priority Reordering (`priorityIndex`) & Cycle-Safe DAG
+- **Interactive Priority Matrix**: Drag and drop tasks to reorder execution priority, automatically recalculating sequential `priorityIndex` values (`0..n-1`) in state.
+- **Cycle-Safe Dependency Graph (DAG) & Critical Path Method (CPM)**: Prevents circular dependencies (`hasDependencyCycle`) and computes Earliest Start (`ES`), Earliest Finish (`EF`), and zero-slack critical chains.
 
-### 4. Interactive 3D Spatial Topology Studio (Three.js WebGL)
-- Renders the live DMAIC 5-stage architectural monuments (`Define` through `Control`) alongside composite 3D task nodes and overhead dependency arcs in real time.
-- Supports click-to-inspect raycasting, camera preset orchestration, and software-WebGL frame pacing (`window.__advance3D`).
+### 4. Slack-Type Real-Time WebSocket Channels & Hybrid Gemini RAG Copilot
+- **Real-Time Team Messaging (`/ws` WebSocket Server)**:
+  - Public and private channels (`#general`, `#dmaic-quality-gates`, `#critical-path-alerts`, plus custom channels), threaded replies, reaction counters, and inline `/rag <query>` commands.
+- **Enterprise RAG (Retrieval-Augmented Generation)**:
+  - Automatically indexes all **Projects**, **Tasks**, **Milestones**, **Slack Channel Messages**, **Uploaded SOP / Charter Documents**, and the **DMAIC Methodology Guide**.
+  - Combines deterministic **BM25 + keyword overlap retrieval** (`retrieveRelevantChunks`) with server-side **Gemini 3.8 Flash** synthesis (`POST /api/rag/query`) and verified `[SourceCode]` citations.
 
-### 5. Integrated Chronometer, Automated Reporting & Exports
-- **Live Task Stopwatch & Manual Timesheets**: Track billable and non-billable engineering hours directly against tasks.
-- **RFC-4180 CSV & Spec-Compliant PDF 1.4 Generator**: One-click export of executive project analytics, `PriorityIndex` schedules, Six Sigma DPMO metrics, and audit logs.
-
-### 6. Granular Role-Based Access Control (RBAC), Workflow Automation & E2E Encryption
-- **4-Tier Permission Matrix**: Live toggleable capabilities across `Admin`, `Manager`, `Contributor`, and `Viewer` roles.
-- **Event-Driven Automation Engine**: Automatically executes status escalations, tag assignments, and real-time notifications when task states or schedules change.
-- **Offline Queue & Web Crypto AES-GCM-256 Vault**: Full offline mutation queuing with automatic cloud reconciliation and client-side `PBKDF2` (100,000 iterations, SHA-256) + `AES-GCM-256` encrypted backup bundles.
+### 5. Role-Based User Authentication (RBAC), Workflow Automations & E2E Vault
+- **User Directory & Session Authentication**: Provision user accounts with roles (`Admin`, `Project Lead`, `Contributor`, `Auditor`), security PIN verification, and live session switching.
+- **Web Crypto AES-GCM-256 Vault**: Client-side `PBKDF2` + `AES-GCM-256` encrypted cloud backups and offline mutation queuing.
 
 ---
 
 ## System Architecture
 
 ```text
-├── server.ts                              # Express full-stack API server & persistent JSON store
+├── server.ts                                # Express API, WebSocket (/ws) server & @google/genai RAG endpoint
 ├── src/
-│   ├── App.tsx                            # Root state container, offline sync queue & navigation shell
-│   ├── types/project.ts                   # Core TypeScript domain models (Task, DMAIC, RBAC, Vault)
-│   ├── data/seedData.ts                   # Clean zero-demo production state initializer
+│   ├── App.tsx                              # Multi-project state container, WebSocket client & navigation shell
+│   ├── types/project.ts                     # Domain types (ProjectEntity, Task, DMAIC, RBAC, Channels, RAG)
+│   ├── data/seedData.ts                     # Clean zero-demo initial state with first-load installer flag
 │   ├── utils/
-│   │   ├── projectEngine.ts               # Pure business logic: priorityIndex, DAG CPM, Six Sigma, PDF/CSV, AES-GCM
-│   │   └── projectEngine.test.ts          # Node:test suite covering all pure domain algorithms
+│   │   ├── projectEngine.ts                 # Pure logic: priorityIndex, DMAIC guide, BM25 RAG, CPM, AES-GCM
+│   │   └── projectEngine.test.ts            # Node:test unit suite covering all pure domain algorithms
 │   └── components/
-│       ├── DashboardView.tsx              # Executive KPIs, Six Sigma DMAIC control & customizable widgets
-│       ├── TasksAndDependenciesView.tsx   # Drag-and-drop priorityIndex table, Kanban & DAG inspector
-│       ├── TopologyScene3D.tsx            # Three.js WebGL 3D DMAIC & dependency topology visualizer
-│       ├── TimeTrackingAndReportsView.tsx # Chronometer, timesheets, SVG charts & PDF/CSV exports
-│       └── AutomationAndSecurityView.tsx  # Workflow triggers, RBAC permission matrix & AES-GCM-256 vault
+│       ├── SetupInstallerModal.tsx          # 4-step First-Load Enterprise Installation & Setup Wizard
+│       ├── DashboardView.tsx                # Executive KPIs, DMAIC Methodology Panel & Multi-Project Switcher
+│       ├── TasksAndDependenciesView.tsx     # Drag-and-drop priorityIndex matrix, Kanban & DAG linker
+│       ├── CollaborationAndRagView.tsx      # Slack-style real-time channels, SOP ingestion & RAG Copilot
+│       ├── TimeTrackingAndReportsView.tsx   # Chronometer, timesheets, SVG charts & PDF 1.4 / CSV exports
+│       └── AutomationAndSecurityView.tsx    # User Auth directory, 4-tier RBAC matrix, Automations & Vault
 ```
 
 ---
 
 ## Getting Started & Production Deployment
 
-### Prerequisites
-- **Node.js** `>= 20.x`
-- **npm** `>= 10.x`
-
-### 1. Install Dependencies
 ```bash
+# 1. Install dependencies
 npm install
-```
 
-### 2. Run Unit & Domain Logic Tests
-Verify the drag-and-drop `priorityIndex` engine, DAG cycle detection, Critical Path Method, Six Sigma DPMO calculator, RBAC matrix, and Web Crypto AES-GCM-256 encryption:
-```bash
+# 2. Run the unit test suite (11 tests)
 npx tsx --test src/utils/projectEngine.test.ts
-```
 
-### 3. Start Full-Stack Development Server
-Starts the Express backend and Vite frontend middleware on port `3000`:
-```bash
+# 3. Start full-stack dev server (Express + Vite + WebSocket on port 3000)
 npm run dev
-```
 
-### 4. Build for Production
-Compiles the TypeScript and Vite production bundle to `dist/`:
-```bash
+# 4. Build for production
 npm run build
-```
 
-### 5. Run in Production
-```bash
+# 5. Start production server
 npm start
 ```
-
----
-
-## REST API Endpoints (`server.ts`)
-
-| Method | Endpoint | Description |
-| :--- | :--- | :--- |
-| `GET` | `/api/health` | Returns server status, encryption specification, and timestamp. |
-| `GET` | `/api/workspace` | Retrieves the current persisted workspace state. |
-| `POST` | `/api/sync` | Persists workspace mutations and reconciles offline queues. |
-| `POST` | `/api/reset` | Resets the workspace to a clean zero-data production state. |
-| `GET` | `/api/backups` | Lists encrypted AES-GCM-256 backup snapshots (metadata only). |
-| `POST` | `/api/backups` | Stores a new client-side encrypted AES-GCM-256 backup bundle. |
 
 ---
 

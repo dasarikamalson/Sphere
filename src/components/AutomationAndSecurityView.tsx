@@ -6,9 +6,11 @@ import {
   FileVaultItem,
   PermissionAction,
   RolePermissionMatrix,
+  TeamMember,
   UserRole,
 } from '../types/project';
 import {
+  authenticateUserAccount,
   decryptPayloadAES,
   EncryptedVaultBundle,
   encryptPayloadAES,
@@ -19,19 +21,30 @@ import {
   FileLock2,
   KeyRound,
   Lock,
+  LogIn,
   Plus,
   ShieldCheck,
+  Trash2,
   Unlock,
+  UserCheck,
+  UserPlus,
+  Users,
   Zap,
 } from 'lucide-react';
 
 interface AutomationAndSecurityViewProps {
+  members: TeamMember[];
+  currentUser: TeamMember;
   automations: AutomationRule[];
   permissions: RolePermissionMatrix;
   files: FileVaultItem[];
   activeRole: UserRole;
   canPerform: (action: PermissionAction) => boolean;
   onChangeActiveRole: (role: UserRole) => void;
+  onAuthenticateUser: (user: TeamMember) => void;
+  onCreateMember: (member: Omit<TeamMember, 'id' | 'initials' | 'avatarHue'>) => void;
+  onUpdateMemberRole: (memberId: string, role: UserRole) => void;
+  onDeleteMember: (memberId: string) => void;
   onToggleAutomation: (ruleId: string) => void;
   onCreateAutomation: (
     rule: Omit<AutomationRule, 'id' | 'executionCount' | 'lastTriggeredAt'>
@@ -64,24 +77,40 @@ const ALL_ACTIONS: { id: PermissionAction; label: string }[] = [
   { id: 'delete_task', label: 'Delete Tasks' },
   { id: 'log_time', label: 'Log Time & Run Chronometer' },
   { id: 'manage_automations', label: 'Configure Workflow Automations' },
-  { id: 'manage_rbac', label: 'Modify Role Permission Matrix' },
+  { id: 'manage_rbac', label: 'Modify Role Permission Matrix & Users' },
   { id: 'export_reports', label: 'Export PDF & CSV Analytics' },
   { id: 'manage_encryption', label: 'Manage E2E Encryption Keys & Backups' },
 ];
 
 export const AutomationAndSecurityView: React.FC<AutomationAndSecurityViewProps> = ({
+  members,
+  currentUser,
   automations,
   permissions,
   files,
   activeRole,
   canPerform,
   onChangeActiveRole,
+  onAuthenticateUser,
+  onCreateMember,
+  onUpdateMemberRole,
+  onDeleteMember,
   onToggleAutomation,
   onCreateAutomation,
   onTogglePermissionCell,
   onCreateEncryptedBackup,
   workspaceSnapshotJson,
 }) => {
+  // User Provisioning & Auth State
+  const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState<UserRole>('Contributor');
+  const [newMemberDept, setNewMemberDept] = useState('Engineering');
+  const [newMemberPin, setNewMemberPin] = useState('1234');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPin, setAuthPin] = useState('');
+  const [authFeedback, setAuthFeedback] = useState<string | null>(null);
+
   const [ruleName, setRuleName] = useState('');
   const [ruleDept, setRuleDept] = useState<string>('All');
   const [ruleTrigger, setRuleTrigger] = useState<AutomationTriggerType>(
@@ -97,6 +126,47 @@ export const AutomationAndSecurityView: React.FC<AutomationAndSecurityViewProps>
     useState<EncryptedVaultBundle | null>(null);
   const [decryptedPreview, setDecryptedPreview] = useState<string | null>(null);
   const [cryptoStatus, setCryptoStatus] = useState<string | null>(null);
+
+  const handleProvisionMember = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canPerform('manage_rbac')) {
+      setAuthFeedback(`Role "${activeRole}" is not authorized to provision user accounts.`);
+      return;
+    }
+    if (!newMemberName.trim() || !newMemberEmail.trim()) {
+      setAuthFeedback('Full Name and Email Address are required.');
+      return;
+    }
+    onCreateMember({
+      name: newMemberName.trim(),
+      email: newMemberEmail.trim().toLowerCase(),
+      role: newMemberRole,
+      title: `${newMemberRole} · ${newMemberDept}`,
+      department: newMemberDept,
+      capacityHoursPerWeek: 40,
+      hourlyRate: 125,
+      platforms: ['macOS', 'Windows', 'iOS', 'Android'],
+      status: 'active',
+      accessPin: newMemberPin.trim() || '0000',
+      createdAt: new Date().toISOString(),
+    });
+    setNewMemberName('');
+    setNewMemberEmail('');
+    setAuthFeedback(`Provisioned RBAC account for ${newMemberName.trim()} (${newMemberRole}).`);
+  };
+
+  const handleLoginSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = authenticateUserAccount(members, authEmail, authPin);
+    if (!res.ok || !res.user) {
+      setAuthFeedback(res.error || 'Authentication failed.');
+      return;
+    }
+    onAuthenticateUser(res.user);
+    setAuthEmail('');
+    setAuthPin('');
+    setAuthFeedback(`Authenticated session switched to ${res.user.name} (${res.user.role}).`);
+  };
 
   const handleAddRule = (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,16 +236,16 @@ export const AutomationAndSecurityView: React.FC<AutomationAndSecurityViewProps>
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-5 border-b border-zinc-200 dark:border-zinc-800">
         <div>
           <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-            <span>Governance, Automation & Cryptography</span>
+            <span>Authenticated as: <strong className="text-zinc-950 dark:text-white">{currentUser.name}</strong> ({currentUser.email})</span>
             <span aria-hidden="true">·</span>
             <span className="tabular-nums">
-              {automations.filter((a) => a.enabled).length} Active Triggers
+              {members.length} RBAC Users
             </span>
             <span aria-hidden="true">·</span>
             <span>AES-GCM-256 Offline Vault</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-zinc-950 dark:text-white mt-1">
-            Workflow Automation, Granular RBAC & E2E Vault
+            Role-Based User Auth, RBAC Management, Automations & E2E Vault
           </h1>
         </div>
 
@@ -198,6 +268,239 @@ export const AutomationAndSecurityView: React.FC<AutomationAndSecurityViewProps>
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Section 0: Role-Based User Authentication & Identity Management Directory */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <section className="lg:col-span-5 p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4">
+          <div className="flex items-center gap-2">
+            <UserPlus className="w-4 h-4 text-zinc-950 dark:text-white" />
+            <h2 className="text-base font-semibold text-zinc-950 dark:text-white">
+              Provision RBAC User Account & Authenticate
+            </h2>
+          </div>
+
+          {authFeedback && (
+            <div className="p-2.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-xs text-zinc-900 dark:text-zinc-100">
+              {authFeedback}
+            </div>
+          )}
+
+          {/* Create User Form */}
+          <form onSubmit={handleProvisionMember} className="space-y-3">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div>
+                <label
+                  htmlFor="rbac-user-name"
+                  className="block text-[11px] font-medium text-zinc-600 dark:text-zinc-400 mb-1"
+                >
+                  Full Name
+                </label>
+                <input
+                  id="rbac-user-name"
+                  type="text"
+                  value={newMemberName}
+                  onChange={(e) => setNewMemberName(e.target.value)}
+                  placeholder="e.g., Marcus Sterling"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="rbac-user-email"
+                  className="block text-[11px] font-medium text-zinc-600 dark:text-zinc-400 mb-1"
+                >
+                  Email Address
+                </label>
+                <input
+                  id="rbac-user-email"
+                  type="email"
+                  value={newMemberEmail}
+                  onChange={(e) => setNewMemberEmail(e.target.value)}
+                  placeholder="marcus@enterprise.local"
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2.5">
+              <div>
+                <label
+                  htmlFor="rbac-user-role"
+                  className="block text-[11px] font-medium text-zinc-600 dark:text-zinc-400 mb-1"
+                >
+                  Assigned Role
+                </label>
+                <select
+                  id="rbac-user-role"
+                  value={newMemberRole}
+                  onChange={(e) => setNewMemberRole(e.target.value as UserRole)}
+                  className="w-full px-2 py-1.5 text-xs rounded-lg border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+                >
+                  {ALL_ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                  Department
+                </label>
+                <input
+                  type="text"
+                  value={newMemberDept}
+                  onChange={(e) => setNewMemberDept(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-600 dark:text-zinc-400 mb-1">
+                  Security PIN
+                </label>
+                <input
+                  type="text"
+                  value={newMemberPin}
+                  onChange={(e) => setNewMemberPin(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs font-mono rounded-lg border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={!canPerform('manage_rbac')}
+              data-testid="provision-user-btn"
+              className="w-full inline-flex items-center justify-center gap-1.5 py-2 px-4 text-xs font-semibold rounded-lg bg-zinc-950 text-white dark:bg-white dark:text-black disabled:opacity-40"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              Provision User Account
+            </button>
+          </form>
+
+          {/* Credential Login Form */}
+          <form
+            onSubmit={handleLoginSubmit}
+            className="pt-3 border-t border-zinc-200 dark:border-zinc-800 space-y-2.5"
+          >
+            <div className="text-xs font-semibold text-zinc-950 dark:text-white flex items-center gap-1.5">
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Verify Credentials & Switch User Session</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <input
+                type="email"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                placeholder="User email..."
+                className="sm:col-span-2 px-2.5 py-1.5 text-xs rounded-lg border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+              />
+              <input
+                type="password"
+                value={authPin}
+                onChange={(e) => setAuthPin(e.target.value)}
+                placeholder="PIN (optional)"
+                className="px-2.5 py-1.5 text-xs font-mono rounded-lg border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full py-1.5 px-3 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-900"
+            >
+              Authenticate Session
+            </button>
+          </form>
+        </section>
+
+        {/* Active RBAC User Directory */}
+        <section className="lg:col-span-7 p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-zinc-950 dark:text-white" />
+              <h2 className="text-base font-semibold text-zinc-950 dark:text-white">
+                Organization User Directory & Role Assignment ({members.length})
+              </h2>
+            </div>
+            <span className="text-[11px] font-mono text-zinc-500">
+              Click "Sign In As" to test RBAC enforcement
+            </span>
+          </div>
+
+          <div className="space-y-2.5 max-h-80 overflow-y-auto">
+            {members.map((m) => {
+              const isCurrent = m.id === currentUser.id;
+              return (
+                <div
+                  key={m.id}
+                  data-testid={`user-row-${m.email}`}
+                  className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs ${
+                    isCurrent
+                      ? 'border-zinc-950 dark:border-white bg-zinc-50 dark:bg-zinc-900/70'
+                      : 'border-zinc-200 dark:border-zinc-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="w-8 h-8 rounded-lg bg-zinc-950 text-white dark:bg-white dark:text-black font-bold flex items-center justify-center text-xs shrink-0">
+                      {m.initials}
+                    </span>
+                    <div>
+                      <div className="font-semibold text-zinc-950 dark:text-white flex items-center gap-2">
+                        <span>{m.name}</span>
+                        {isCurrent && (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-950 text-white dark:bg-white dark:text-black">
+                            Active Session
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-zinc-500">
+                        {m.email} · {m.department} · PIN: <span className="font-mono">{m.accessPin || '0000'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={m.role}
+                      disabled={!canPerform('manage_rbac')}
+                      onChange={(e) => onUpdateMemberRole(m.id, e.target.value as UserRole)}
+                      aria-label={`Change role for ${m.name}`}
+                      className="px-2.5 py-1 text-xs rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                    >
+                      {ALL_ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </select>
+
+                    {!isCurrent && (
+                      <button
+                        type="button"
+                        onClick={() => onAuthenticateUser(m)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      >
+                        <UserCheck className="w-3 h-3" />
+                        Sign In As
+                      </button>
+                    )}
+
+                    {members.length > 1 && canPerform('manage_rbac') && !isCurrent && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteMember(m.id)}
+                        aria-label={`Remove ${m.name}`}
+                        className="p-1 text-zinc-400 hover:text-zinc-900 dark:hover:text-white"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       </div>
 
       {/* Section 1: Custom Workflow Automation Engine */}

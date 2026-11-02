@@ -1,35 +1,43 @@
 import React, { useState } from 'react';
 import {
   DashboardWidgetConfig,
+  DmaicPhase,
   IndustrySector,
   Milestone,
   NotificationItem,
+  ProjectEntity,
   Task,
   WidgetId,
 } from '../types/project';
 import {
   CriticalPathAnalysis,
+  DMAIC_METHODOLOGY_GUIDE,
   ProjectAnalyticsSummary,
 } from '../utils/projectEngine';
 import {
   ArrowDown,
   ArrowUp,
-  Cuboid,
+  BookOpen,
   Download,
   Eye,
   EyeOff,
   FileSpreadsheet,
+  FolderKanban,
   GripVertical,
   Lock,
+  MessageSquare,
   Plus,
   RefreshCw,
   SlidersHorizontal,
+  X,
 } from 'lucide-react';
 
 interface DashboardViewProps {
   projectName: string;
   projectCode: string;
   industrySector: IndustrySector;
+  projects: ProjectEntity[];
+  activeProjectId: string;
   analytics: ProjectAnalyticsSummary;
   criticalPath: CriticalPathAnalysis;
   milestones: Milestone[];
@@ -40,6 +48,8 @@ interface DashboardViewProps {
   pendingOfflineCount: number;
   lastSyncedAt: string;
   encryptionFingerprint: string;
+  onSelectProject: (projectId: string) => void;
+  onCreateProject: (proj: Omit<ProjectEntity, 'id' | 'createdAt'>) => void;
   onUpdateWorkspaceMeta: (meta: {
     projectName?: string;
     projectCode?: string;
@@ -50,7 +60,7 @@ interface DashboardViewProps {
   onExportCsv: () => void;
   onExportPdf: () => void;
   onNavigateToTab: (
-    tab: 'dashboard' | 'tasks' | 'topology3d' | 'timetracking' | 'automation'
+    tab: 'dashboard' | 'tasks' | 'collaboration' | 'timetracking' | 'automation'
   ) => void;
 }
 
@@ -65,6 +75,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   projectName,
   projectCode,
   industrySector,
+  projects,
+  activeProjectId,
   analytics,
   criticalPath,
   milestones,
@@ -75,6 +87,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   pendingOfflineCount,
   lastSyncedAt,
   encryptionFingerprint,
+  onSelectProject,
+  onCreateProject,
   onUpdateWorkspaceMeta,
   onUpdateWidgets,
   onTriggerSync,
@@ -86,6 +100,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [draggedWidgetId, setDraggedWidgetId] = useState<WidgetId | null>(null);
   const [chartMetric, setChartMetric] = useState<'points' | 'hours'>('points');
   const [selectedSprintIndex, setSelectedSprintIndex] = useState<number>(0);
+  const [selectedMethodologyPhase, setSelectedMethodologyPhase] = useState<DmaicPhase>('Define');
+
+  // Create New Project Modal State
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [newProjName, setNewProjName] = useState('');
+  const [newProjCode, setNewProjCode] = useState(`PRJ-00${projects.length + 1}`);
+  const [newProjSector, setNewProjSector] = useState<IndustrySector>(industrySector);
+  const [newProjDesc, setNewProjDesc] = useState('');
 
   const sortedWidgets = [...widgets].sort((a, b) => a.order - b.order);
   const visibleWidgets = sortedWidgets.filter((w) => w.visible);
@@ -126,9 +148,32 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setDraggedWidgetId(null);
   };
 
+  const handleCreateProjectSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newProjName.trim() || !newProjCode.trim()) return;
+    onCreateProject({
+      name: newProjName.trim(),
+      code: newProjCode.trim().toUpperCase(),
+      industrySector: newProjSector,
+      description:
+        newProjDesc.trim() ||
+        `${newProjSector} program governed by Six Sigma DMAIC control.`,
+      targetSigmaLevel: 6.0,
+      leadName: 'Project Lead',
+    });
+    setNewProjName('');
+    setNewProjCode(`PRJ-00${projects.length + 2}`);
+    setNewProjDesc('');
+    setIsNewProjectOpen(false);
+  };
+
   const selectedSprint =
     analytics.velocitySeries[selectedSprintIndex] ??
     analytics.velocitySeries[0];
+
+  const activeMethodologyStep =
+    DMAIC_METHODOLOGY_GUIDE.find((s) => s.phase === selectedMethodologyPhase) ||
+    DMAIC_METHODOLOGY_GUIDE[0];
 
   return (
     <div className="space-y-6">
@@ -136,6 +181,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-5 border-b border-zinc-200 dark:border-zinc-800">
         <div>
           <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+            <span className="font-mono font-semibold text-zinc-900 dark:text-zinc-100">
+              {projectCode}
+            </span>
+            <span aria-hidden="true">·</span>
             <span>{industrySector}</span>
             <span aria-hidden="true">·</span>
             <span className="tabular-nums">
@@ -163,11 +212,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
+            onClick={() => setIsNewProjectOpen(true)}
+            data-testid="new-project-btn"
+            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors whitespace-nowrap shrink-0"
+          >
+            <FolderKanban className="w-3.5 h-3.5" />
+            + New Project
+          </button>
+
+          <button
+            type="button"
             onClick={() => onNavigateToTab('tasks')}
             className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors whitespace-nowrap shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
             Manage Tasks & Priority
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('collaboration')}
+            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors whitespace-nowrap shrink-0"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            Channels & RAG Copilot
           </button>
 
           <button
@@ -182,15 +250,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
             Customize Widgets
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('topology3d')}
-            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors whitespace-nowrap shrink-0"
-          >
-            <Cuboid className="w-3.5 h-3.5" />
-            3D DAG Topology
           </button>
 
           <button
@@ -213,60 +272,195 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* Production Workspace Configuration Strip (Construction / Events / Tech / Six Sigma) */}
-      <section className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-950 grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-        <div className="md:col-span-5">
-          <label
-            htmlFor="workspace-name-input"
-            className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1"
-          >
-            Production Project Title
-          </label>
-          <input
-            id="workspace-name-input"
-            type="text"
-            value={projectName}
-            onChange={(e) => onUpdateWorkspaceMeta({ projectName: e.target.value })}
-            placeholder="Enter project title (e.g., Apex Tower Construction / Global Summit 2026 / Core Platform v2)"
-            className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-950 dark:text-white"
-          />
-        </div>
-
-        <div className="md:col-span-2">
-          <label
-            htmlFor="workspace-code-input"
-            className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1"
-          >
-            Project Code
-          </label>
-          <input
-            id="workspace-code-input"
-            type="text"
-            value={projectCode}
-            onChange={(e) => onUpdateWorkspaceMeta({ projectCode: e.target.value })}
-            className="w-full px-3 py-1.5 text-xs tabular-nums rounded-lg border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-950 dark:text-white"
-          />
-        </div>
-
-        <div className="md:col-span-5">
-          <span className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-            Industry Operational Domain
-          </span>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-            {SECTORS.map((sec) => (
+      {/* Create New Project Modal */}
+      {isNewProjectOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75"
+        >
+          <div className="w-full max-w-md rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-200 dark:border-zinc-800">
+              <h2 className="text-base font-semibold text-zinc-950 dark:text-white">
+                Create New Project in Portfolio
+              </h2>
               <button
-                key={sec}
                 type="button"
-                onClick={() => onUpdateWorkspaceMeta({ industrySector: sec })}
-                className={`px-2.5 py-1.5 text-[11px] font-medium rounded-lg border transition-colors truncate ${
-                  industrySector === sec
-                    ? 'bg-zinc-950 text-white border-zinc-950 dark:bg-white dark:text-black dark:border-white'
-                    : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:text-zinc-950 dark:hover:text-white'
-                }`}
+                onClick={() => setIsNewProjectOpen(false)}
+                className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
               >
-                {sec.split(' ')[0]}
+                <X className="w-4 h-4" />
               </button>
-            ))}
+            </div>
+            <form onSubmit={handleCreateProjectSubmit} className="space-y-3">
+              <div>
+                <label
+                  htmlFor="new-project-name"
+                  className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+                >
+                  Project Name
+                </label>
+                <input
+                  id="new-project-name"
+                  type="text"
+                  value={newProjName}
+                  onChange={(e) => setNewProjName(e.target.value)}
+                  placeholder="e.g., Metro Bridge Civil Expansion / Global Keynote Production"
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label
+                    htmlFor="new-project-code"
+                    className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+                  >
+                    Project Code
+                  </label>
+                  <input
+                    id="new-project-code"
+                    type="text"
+                    value={newProjCode}
+                    onChange={(e) => setNewProjCode(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="new-project-sector"
+                    className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1"
+                  >
+                    Industry Sector
+                  </label>
+                  <select
+                    id="new-project-sector"
+                    value={newProjSector}
+                    onChange={(e) => setNewProjSector(e.target.value as IndustrySector)}
+                    className="w-full px-2.5 py-2 text-xs rounded-lg border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+                  >
+                    {SECTORS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                  Charter Scope Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={newProjDesc}
+                  onChange={(e) => setNewProjDesc(e.target.value)}
+                  placeholder="Brief operational charter and Six Sigma quality target..."
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-zinc-300 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsNewProjectOpen(false)}
+                  className="px-3.5 py-1.5 text-xs rounded-lg border border-zinc-300 dark:border-zinc-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 text-xs font-semibold rounded-lg bg-zinc-950 text-white dark:bg-white dark:text-black"
+                >
+                  Create & Switch Project
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Multi-Project Portfolio Switcher & Operational Sector Configurator */}
+      <section className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-950 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-zinc-200 dark:border-zinc-800">
+          <div className="flex items-center gap-2 text-xs font-semibold text-zinc-950 dark:text-white">
+            <FolderKanban className="w-3.5 h-3.5" />
+            <span>Multi-Project Portfolio ({projects.length} Active Program{projects.length === 1 ? '' : 's'})</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {projects.map((p) => {
+              const active = p.id === activeProjectId;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => onSelectProject(p.id)}
+                  className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${
+                    active
+                      ? 'bg-zinc-950 text-white border-zinc-950 dark:bg-white dark:text-black dark:border-white font-semibold'
+                      : 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  <span className="font-mono mr-1.5">{p.code}</span>
+                  <span>{p.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+          <div className="md:col-span-5">
+            <label
+              htmlFor="workspace-name-input"
+              className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1"
+            >
+              Active Project Title
+            </label>
+            <input
+              id="workspace-name-input"
+              type="text"
+              value={projectName}
+              onChange={(e) => onUpdateWorkspaceMeta({ projectName: e.target.value })}
+              placeholder="Enter project title (e.g., Apex Tower Construction / Global Summit 2026 / Core Platform v2)"
+              className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-950 dark:text-white"
+            />
+          </div>
+
+          <div className="md:col-span-2">
+            <label
+              htmlFor="workspace-code-input"
+              className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1"
+            >
+              Project Code
+            </label>
+            <input
+              id="workspace-code-input"
+              type="text"
+              value={projectCode}
+              onChange={(e) => onUpdateWorkspaceMeta({ projectCode: e.target.value })}
+              className="w-full px-3 py-1.5 text-xs tabular-nums rounded-lg border border-zinc-300 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-950 dark:text-white"
+            />
+          </div>
+
+          <div className="md:col-span-5">
+            <span className="block text-[11px] font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+              Industry Operational Domain
+            </span>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              {SECTORS.map((sec) => (
+                <button
+                  key={sec}
+                  type="button"
+                  onClick={() => onUpdateWorkspaceMeta({ industrySector: sec })}
+                  className={`px-2.5 py-1.5 text-[11px] font-medium rounded-lg border transition-colors truncate ${
+                    industrySector === sec
+                      ? 'bg-zinc-950 text-white border-zinc-950 dark:bg-white dark:text-black dark:border-white'
+                      : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-zinc-200 dark:border-zinc-800 hover:text-zinc-950 dark:hover:text-white'
+                  }`}
+                >
+                  {sec.split(' ')[0]}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -440,6 +634,138 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Customizable Drag-and-Drop Dashboard Widget Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {visibleWidgets.map((widget) => {
+          if (widget.id === 'dmaic_methodology') {
+            return (
+              <section
+                key={widget.id}
+                draggable
+                onDragStart={() => setDraggedWidgetId(widget.id)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => handleDropOnWidget(widget.id)}
+                data-testid="dmaic-methodology-panel"
+                className="lg:col-span-2 p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-4"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-zinc-200 dark:border-zinc-800">
+                  <div className="flex items-start gap-2.5">
+                    <BookOpen className="w-4 h-4 text-zinc-950 dark:text-white mt-0.5 shrink-0" />
+                    <div>
+                      <h2 className="text-base font-semibold text-zinc-950 dark:text-white">
+                        {widget.title}
+                      </h2>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                        Plain-English Six Sigma implementation guide showing how Define, Measure, Analyze, Improve, and Control map directly to KronoSphere modules
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-[11px] font-mono px-2.5 py-1 rounded border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-300 shrink-0">
+                    DMAIC → Tool Mapping Guide
+                  </span>
+                </div>
+
+                {/* 5-Phase Interactive Selector Strip */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  {DMAIC_METHODOLOGY_GUIDE.map((stepItem) => {
+                    const isSelected = stepItem.phase === selectedMethodologyPhase;
+                    return (
+                      <button
+                        key={stepItem.phase}
+                        type="button"
+                        onClick={() => setSelectedMethodologyPhase(stepItem.phase)}
+                        data-testid={`methodology-tab-${stepItem.phase.toLowerCase()}`}
+                        className={`p-3 rounded-lg border text-left transition-colors ${
+                          isSelected
+                            ? 'bg-zinc-950 text-white border-zinc-950 dark:bg-white dark:text-black dark:border-white'
+                            : 'bg-zinc-50 dark:bg-zinc-900/60 text-zinc-800 dark:text-zinc-200 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-900'
+                        }`}
+                      >
+                        <div className="text-[11px] font-mono opacity-75">
+                          Step {stepItem.stepNumber}
+                        </div>
+                        <div className="text-sm font-bold mt-0.5">
+                          {stepItem.phase}
+                        </div>
+                        <div className="text-[11px] opacity-80 line-clamp-1 mt-0.5">
+                          {stepItem.mappedFeatureLabel}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Active DMAIC Phase Detailed Mapping Card */}
+                <div className="p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-900/50 grid grid-cols-1 lg:grid-cols-12 gap-5">
+                  <div className="lg:col-span-7 space-y-3">
+                    <div>
+                      <div className="text-[11px] font-mono uppercase tracking-wider text-zinc-500">
+                        Phase {activeMethodologyStep.stepNumber} · {activeMethodologyStep.phase} — Plain-English Principle
+                      </div>
+                      <h3 className="text-sm font-bold text-zinc-950 dark:text-white mt-0.5">
+                        {activeMethodologyStep.tagline}
+                      </h3>
+                      <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1 leading-relaxed">
+                        {activeMethodologyStep.plainLanguageExplanation}
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-1.5">
+                      <div className="text-[11px] font-mono uppercase text-zinc-500">
+                        How KronoSphere Implements & Automates {activeMethodologyStep.phase}
+                      </div>
+                      <p className="text-xs font-medium text-zinc-900 dark:text-zinc-100 leading-relaxed">
+                        {activeMethodologyStep.kronosphereToolMapping}
+                      </p>
+                      <div className="pt-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onNavigateToTab(activeMethodologyStep.mappedTab)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-zinc-950 text-white dark:bg-white dark:text-black hover:opacity-90 transition-opacity"
+                        >
+                          Open {activeMethodologyStep.mappedFeatureLabel} →
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="lg:col-span-5 space-y-3">
+                    <div className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-1.5">
+                      <div className="text-[11px] font-mono uppercase text-zinc-500">
+                        Tracked Outputs in {activeMethodologyStep.phase}
+                      </div>
+                      <ul className="space-y-1 text-xs text-zinc-700 dark:text-zinc-300">
+                        {activeMethodologyStep.keyOutputs.map((out, idx) => (
+                          <li key={idx} className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-zinc-950 dark:bg-white shrink-0" />
+                            <span>{out}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="p-3 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-1.5 text-xs">
+                      <div className="text-[11px] font-mono uppercase text-zinc-500">
+                        Real-World Sector Playbook
+                      </div>
+                      <div className="space-y-1 text-[11px] text-zinc-600 dark:text-zinc-400">
+                        <div>
+                          <strong className="text-zinc-950 dark:text-white">Construction:</strong>{' '}
+                          {activeMethodologyStep.industryExamples.construction}
+                        </div>
+                        <div>
+                          <strong className="text-zinc-950 dark:text-white">Events:</strong>{' '}
+                          {activeMethodologyStep.industryExamples.events}
+                        </div>
+                        <div>
+                          <strong className="text-zinc-950 dark:text-white">Tech Dev:</strong>{' '}
+                          {activeMethodologyStep.industryExamples.tech}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            );
+          }
+
           if (widget.id === 'six_sigma_dmaic') {
             return (
               <section

@@ -2,28 +2,103 @@ import { WorkspaceState } from '../types/project';
 
 /**
  * Clean, zero-demo-data initial state for production use across
- * Construction, Event Production, Tech Application Development, and Six Sigma operations.
+ * multi-project Construction, Event Production, Tech Application Development,
+ * and Lean Six Sigma (DMAIC) operations.
+ *
+ * Starts with `isSetupComplete: false` to launch the First-Load Enterprise
+ * Installation & Multi-Project Provisioning System on initial boot.
  */
 export const INITIAL_WORKSPACE_STATE: WorkspaceState = {
-  projectName: 'Production Workspace',
+  isSetupComplete: false,
+  organizationName: 'KronoSphere Enterprise',
+  organizationDomain: 'enterprise.local',
+  targetSigmaLevel: 6.0,
+  activeProjectId: 'prj-default-1',
+  projects: [
+    {
+      id: 'prj-default-1',
+      name: 'Production Program Alpha',
+      code: 'PRJ-001',
+      industrySector: 'Tech Development',
+      description: 'Primary operational execution program governed by Six Sigma DMAIC quality gates.',
+      targetSigmaLevel: 6.0,
+      leadName: 'System Administrator',
+      createdAt: new Date().toISOString(),
+    },
+  ],
+  currentUserId: 'usr-admin-1',
+  projectName: 'Production Program Alpha',
   projectCode: 'PRJ-001',
   industrySector: 'Tech Development',
   encryptionKeyFingerprint: 'SHA256:E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855',
   lastSyncedAt: new Date().toISOString(),
-  members: [],
+  members: [
+    {
+      id: 'usr-admin-1',
+      name: 'System Administrator',
+      role: 'Admin',
+      title: 'Master Black Belt & Principal Architect',
+      department: 'Quality & Six Sigma',
+      email: 'admin@enterprise.local',
+      initials: 'SA',
+      avatarHue: 0,
+      capacityHoursPerWeek: 40,
+      hourlyRate: 150,
+      platforms: ['macOS', 'Windows', 'iOS', 'Android'],
+      status: 'active',
+      accessPin: '0000',
+      createdAt: new Date().toISOString(),
+    },
+  ],
   milestones: [],
   tasks: [],
   timeEntries: [],
   automations: [],
   notifications: [],
   files: [],
+  channels: [
+    {
+      id: 'chn-general',
+      name: 'general',
+      topic: 'Organization-wide operational announcements, cross-project handoffs & daily standups',
+      isPrivate: false,
+      type: 'channel',
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'chn-dmaic-gates',
+      name: 'dmaic-quality-gates',
+      topic: 'Six Sigma DMAIC phase reviews, DPMO defect root-cause analysis & Cpk control audits',
+      isPrivate: false,
+      type: 'channel',
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: 'chn-critical-path',
+      name: 'critical-path-alerts',
+      topic: 'Real-time DAG dependency blockers, priorityIndex escalations & schedule variance',
+      isPrivate: false,
+      type: 'channel',
+      createdAt: new Date().toISOString(),
+    },
+  ],
+  messages: [],
+  knowledgeDocs: [],
   widgets: [
+    {
+      id: 'dmaic_methodology',
+      title: 'Six Sigma DMAIC Methodology & Tool Mapping',
+      subtitle: 'Interactive guide mapping Define, Measure, Analyze, Improve, and Control to KronoSphere workflows',
+      visible: true,
+      order: 0,
+      colSpan: 2,
+    },
     {
       id: 'six_sigma_dmaic',
       title: 'Six Sigma DMAIC & Process Capability Control',
       subtitle: 'Live DPMO, Sigma Level (σ), Process Yield, and DMAIC phase distribution',
       visible: true,
-      order: 0,
+      order: 1,
       colSpan: 2,
     },
     {
@@ -31,7 +106,7 @@ export const INITIAL_WORKSPACE_STATE: WorkspaceState = {
       title: 'Execution Velocity & Hours Trajectory',
       subtitle: 'Planned vs. delivered hours across active work packages',
       visible: true,
-      order: 1,
+      order: 2,
       colSpan: 2,
     },
     {
@@ -39,7 +114,7 @@ export const INITIAL_WORKSPACE_STATE: WorkspaceState = {
       title: 'Milestone Gates & Phase Readiness',
       subtitle: 'Deliverable gates across Construction, Events, or Tech releases',
       visible: true,
-      order: 2,
+      order: 3,
       colSpan: 1,
     },
     {
@@ -47,7 +122,7 @@ export const INITIAL_WORKSPACE_STATE: WorkspaceState = {
       title: 'Department & Workstream Allocation',
       subtitle: 'Logged vs. estimated hours by operational unit',
       visible: true,
-      order: 3,
+      order: 4,
       colSpan: 1,
     },
     {
@@ -55,7 +130,7 @@ export const INITIAL_WORKSPACE_STATE: WorkspaceState = {
       title: 'Operational & Quality Event Log',
       subtitle: 'Real-time milestone, dependency, and Six Sigma quality alerts',
       visible: true,
-      order: 4,
+      order: 5,
       colSpan: 1,
     },
     {
@@ -63,7 +138,7 @@ export const INITIAL_WORKSPACE_STATE: WorkspaceState = {
       title: 'Offline Vault & Cross-Platform Sync',
       subtitle: 'AES-GCM-256 encryption state across Desktop & Mobile endpoints',
       visible: true,
-      order: 5,
+      order: 6,
       colSpan: 1,
     },
   ],

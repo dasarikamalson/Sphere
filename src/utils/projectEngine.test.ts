@@ -13,9 +13,13 @@ import {
   generatePdfBinary,
   encryptPayloadAES,
   decryptPayloadAES,
+  DMAIC_METHODOLOGY_GUIDE,
+  retrieveRelevantChunks,
+  synthesizeLocalRagAnswer,
+  authenticateUserAccount,
 } from './projectEngine';
 import { INITIAL_WORKSPACE_STATE } from '../data/seedData';
-import { Task, AutomationRule } from '../types/project';
+import { Task, AutomationRule, WorkspaceState } from '../types/project';
 
 const TEST_TASKS: Task[] = [
   {
@@ -86,15 +90,30 @@ const TEST_TASKS: Task[] = [
   },
 ];
 
-test('INITIAL_WORKSPACE_STATE starts completely clean with zero demo data', () => {
+test('INITIAL_WORKSPACE_STATE starts completely clean with zero demo tasks and multi-project schema', () => {
   assert.equal(INITIAL_WORKSPACE_STATE.tasks.length, 0);
   assert.equal(INITIAL_WORKSPACE_STATE.milestones.length, 0);
   assert.equal(INITIAL_WORKSPACE_STATE.timeEntries.length, 0);
-  assert.equal(INITIAL_WORKSPACE_STATE.members.length, 0);
+  assert.equal(INITIAL_WORKSPACE_STATE.messages.length, 0);
+  assert.equal(INITIAL_WORKSPACE_STATE.knowledgeDocs.length, 0);
+  assert.ok(Array.isArray(INITIAL_WORKSPACE_STATE.projects));
+  assert.ok(INITIAL_WORKSPACE_STATE.projects.length >= 1);
+});
+
+test('DMAIC_METHODOLOGY_GUIDE maps all 5 Six Sigma DMAIC phases to tool workflows', () => {
+  assert.equal(DMAIC_METHODOLOGY_GUIDE.length, 5);
+  assert.deepEqual(
+    DMAIC_METHODOLOGY_GUIDE.map((s) => s.phase),
+    ['Define', 'Measure', 'Analyze', 'Improve', 'Control']
+  );
+  for (const step of DMAIC_METHODOLOGY_GUIDE) {
+    assert.ok(step.plainLanguageExplanation.length > 20);
+    assert.ok(step.kronosphereToolMapping.length > 20);
+    assert.ok(step.keyOutputs.length >= 2);
+  }
 });
 
 test('reorderTasksByPriorityIndex reorders tasks and updates priorityIndex sequentially', () => {
-  // Drag t3 (index 2) to t1 (index 0)
   const reordered = reorderTasksByPriorityIndex(TEST_TASKS, 't3', 't1');
   assert.equal(reordered[0].id, 't3');
   assert.equal(reordered[0].priorityIndex, 0);
@@ -103,7 +122,6 @@ test('reorderTasksByPriorityIndex reorders tasks and updates priorityIndex seque
   assert.equal(reordered[2].id, 't2');
   assert.equal(reordered[2].priorityIndex, 2);
 
-  // Move t1 up by 1 step
   const stepped = moveTaskPriorityStep(reordered, 't1', -1);
   assert.equal(stepped[0].id, 't1');
   assert.equal(stepped[0].priorityIndex, 0);
@@ -113,7 +131,6 @@ test('reorderTasksByPriorityIndex reorders tasks and updates priorityIndex seque
 
 test('computeSixSigmaMetrics calculates accurate DPMO, Yield %, Sigma Level, and DMAIC breakdown', () => {
   const sigma = computeSixSigmaMetrics(TEST_TASKS);
-  // 3 defects out of 2000 opportunities => DPMO = 1500
   assert.equal(sigma.totalOpportunities, 2000);
   assert.equal(sigma.totalDefects, 3);
   assert.equal(sigma.dpmo, 1500);
@@ -135,7 +152,7 @@ test('computeCriticalPath calculates longest duration chain and blocked tasks', 
   assert.ok(analysis.blockedTaskIds.includes('t3'));
 });
 
-test('canRolePerform enforces granular RBAC permissions per role', () => {
+test('canRolePerform and authenticateUserAccount enforce RBAC and account status', () => {
   const matrix = INITIAL_WORKSPACE_STATE.permissions;
   assert.equal(canRolePerform('Admin', 'manage_rbac', matrix), true);
   assert.equal(canRolePerform('Project Lead', 'create_task', matrix), true);
@@ -144,6 +161,48 @@ test('canRolePerform enforces granular RBAC permissions per role', () => {
   assert.equal(canRolePerform('Contributor', 'delete_task', matrix), false);
   assert.equal(canRolePerform('Auditor', 'export_reports', matrix), true);
   assert.equal(canRolePerform('Auditor', 'create_task', matrix), false);
+
+  const authSuccess = authenticateUserAccount(
+    INITIAL_WORKSPACE_STATE.members,
+    'admin@enterprise.local',
+    '0000'
+  );
+  assert.equal(authSuccess.ok, true);
+  assert.equal(authSuccess.user?.role, 'Admin');
+
+  const authBadPin = authenticateUserAccount(
+    INITIAL_WORKSPACE_STATE.members,
+    'admin@enterprise.local',
+    '9999'
+  );
+  assert.equal(authBadPin.ok, false);
+});
+
+test('retrieveRelevantChunks and synthesizeLocalRagAnswer rank multi-project tasks, docs, and channels', () => {
+  const sampleWorkspace: WorkspaceState = {
+    ...INITIAL_WORKSPACE_STATE,
+    tasks: TEST_TASKS,
+    knowledgeDocs: [
+      {
+        id: 'doc-1',
+        code: 'SOP-101',
+        title: 'Concrete Compression & Rebar Inspection Protocol',
+        category: 'SOP',
+        dmaicPhase: 'Measure',
+        content: 'All structural pours must pass 4500 PSI compression tests with zero rebar voids.',
+        authorName: 'System Administrator',
+        updatedAt: '2026-11-01T00:00:00Z',
+      },
+    ],
+  };
+
+  const chunks = retrieveRelevantChunks('concrete compression PRJ-102 SOP-101', sampleWorkspace, 4);
+  assert.ok(chunks.length >= 2);
+  assert.ok(chunks.some((c) => c.sourceCode === 'PRJ-102' || c.sourceCode === 'SOP-101'));
+
+  const synthesis = synthesizeLocalRagAnswer('concrete compression', chunks, sampleWorkspace);
+  assert.ok(synthesis.answer.includes('Grounded RAG Analysis'));
+  assert.ok(synthesis.citations.length >= 2);
 });
 
 test('evaluateAutomationRules triggers priority escalation when task is blocked', () => {
