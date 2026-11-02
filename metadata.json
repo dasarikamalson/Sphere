@@ -1,0 +1,6 @@
+{
+  "name": "KronoSphere — Open-Source Project & Time Intelligence",
+  "description": "Enterprise open-source project management workspace with integrated time tracking, 3D dependency topology, workflow automation, granular RBAC, offline E2E encryption, and automated analytics reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

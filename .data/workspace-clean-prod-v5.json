@@ -1,0 +1,106 @@
+{
+  "projectName": "Production Workspace",
+  "projectCode": "PRJ-001",
+  "industrySector": "Tech Development",
+  "encryptionKeyFingerprint": "SHA256:E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+  "lastSyncedAt": "2026-11-02T06:43:01.980Z",
+  "members": [],
+  "milestones": [],
+  "tasks": [],
+  "timeEntries": [],
+  "automations": [],
+  "notifications": [],
+  "files": [],
+  "widgets": [
+    {
+      "id": "six_sigma_dmaic",
+      "title": "Six Sigma DMAIC & Process Capability Control",
+      "subtitle": "Live DPMO, Sigma Level (σ), Process Yield, and DMAIC phase distribution",
+      "visible": true,
+      "order": 0,
+      "colSpan": 2
+    },
+    {
+      "id": "velocity_burndown",
+      "title": "Execution Velocity & Hours Trajectory",
+      "subtitle": "Planned vs. delivered hours across active work packages",
+      "visible": true,
+      "order": 1,
+      "colSpan": 2
+    },
+    {
+      "id": "milestone_tracker",
+      "title": "Milestone Gates & Phase Readiness",
+      "subtitle": "Deliverable gates across Construction, Events, or Tech releases",
+      "visible": true,
+      "order": 2,
+      "colSpan": 1
+    },
+    {
+      "id": "department_workload",
+      "title": "Department & Workstream Allocation",
+      "subtitle": "Logged vs. estimated hours by operational unit",
+      "visible": true,
+      "order": 3,
+      "colSpan": 1
+    },
+    {
+      "id": "critical_alerts",
+      "title": "Operational & Quality Event Log",
+      "subtitle": "Real-time milestone, dependency, and Six Sigma quality alerts",
+      "visible": true,
+      "order": 4,
+      "colSpan": 1
+    },
+    {
+      "id": "encryption_sync_status",
+      "title": "Offline Vault & Cross-Platform Sync",
+      "subtitle": "AES-GCM-256 encryption state across Desktop & Mobile endpoints",
+      "visible": true,
+      "order": 5,
+      "colSpan": 1
+    }
+  ],
+  "permissions": {
+    "Admin": {
+      "create_task": true,
+      "update_task": true,
+      "delete_task": true,
+      "log_time": true,
+      "manage_automations": true,
+      "manage_rbac": true,
+      "export_reports": true,
+      "manage_encryption": true
+    },
+    "Project Lead": {
+      "create_task": true,
+      "update_task": true,
+      "delete_task": true,
+      "log_time": true,
+      "manage_automations": true,
+      "manage_rbac": false,
+      "export_reports": true,
+      "manage_encryption": true
+    },
+    "Contributor": {
+      "create_task": true,
+      "update_task": true,
+      "delete_task": false,
+      "log_time": true,
+      "manage_automations": false,
+      "manage_rbac": false,
+      "export_reports": true,
+      "manage_encryption": false
+    },
+    "Auditor": {
+      "create_task": false,
+      "update_task": false,
+      "delete_task": false,
+      "log_time": false,
+      "manage_automations": false,
+      "manage_rbac": false,
+      "export_reports": true,
+      "manage_encryption": false
+    }
+  }
+}
